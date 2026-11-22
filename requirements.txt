@@ -1,0 +1,4 @@
+streamlit==1.66.1
+pandas==2.3.3
+pymupdf==1.26.5
+pywebview==6.1
