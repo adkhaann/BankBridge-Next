@@ -2796,9 +2796,13 @@ def generate_cibc_qbo(df, info, account_type):
         ending=-(info['summary']['new_balance'])
     else:
         acct=info['account_id']
-        verified={'04322 81-39938':'CHECKING','00502 63-86091':'SAVINGS'}
-        if acct not in verified:raise ValueError('CIBC account ID not verified against genuine QBO. CSV only.')
-        acct_tag=f'<BANKACCTFROM><BANKID>600000100<ACCTID>{acct}<ACCTTYPE>{verified[acct]}</BANKACCTFROM>'
+        if not isinstance(acct, str) or not re.fullmatch(r'\d{5} \d{2}-\d{5}', acct):
+            raise ValueError('CIBC transit/account identifier missing or invalid. CSV only.')
+        account_types = {'Personal Chequing': 'CHECKING', 'Business Chequing': 'CHECKING',
+                         'Personal Savings': 'SAVINGS', 'Business Savings': 'SAVINGS'}
+        if account_type not in account_types:
+            raise ValueError('Select a CIBC chequing or savings account type.')
+        acct_tag=f'<BANKACCTFROM><BANKID>600000100<ACCTID>{acct}<ACCTTYPE>{account_types[account_type]}</BANKACCTFROM>'
         outer='BANKMSGSRSV1';response='STMTTRNRS';statement='STMTRS'
         ending=info['ending_balance']
     dates=pd.to_datetime(df.Date)
