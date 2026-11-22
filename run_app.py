@@ -29,7 +29,7 @@ def _bundle_hints():
     import engine                     # noqa: F401
     import build_engine               # noqa: F401
 
-APP_NAME = "BankBridge"
+APP_NAME = "BankBridgeNext"
 FROZEN = getattr(sys, "frozen", False)
 HERE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), APP_NAME)
@@ -146,7 +146,7 @@ def wait_until_ready(port, proc, timeout=90):
 # ---------------------------------------------------------------------------
 # Window
 # ---------------------------------------------------------------------------
-SPLASH = """<!doctype html><html><head><meta charset="utf-8"><title>BankBridge</title><link rel="icon" href="__ICON__"><style>
+SPLASH = """<!doctype html><html><head><meta charset="utf-8"><title>BankBridgeNext</title><link rel="icon" href="__ICON__"><style>
 html,body{margin:0;height:100%;background:#0E2A47;font-family:"Segoe UI",system-ui,sans-serif;color:#fff}
 .w{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
 .n{font-size:30px;font-weight:700;letter-spacing:.3px}.t{color:#A9BCD3;font-size:14px}
@@ -160,7 +160,7 @@ html,body{margin:0;height:100%;background:#0E2A47;font-family:"Segoe UI",system-
 <path d="M10 44H54" stroke-width="4"/><path d="M22 18V50M42 18V50" stroke-width="4"/>
 <path d="M10 27L22 19Q32 40 42 19L54 27" stroke-width="3" stroke-linejoin="round"/>
 <path d="M27 25.6V44M32 29.5V44M37 25.6V44" stroke-width="2"/></g></svg>
-<div class="n">BankBridge</div><div class="bar"><i></i></div><div class="t">Starting up…</div>
+<div class="n">BankBridgeNext</div><div class="bar"><i></i></div><div class="t">Starting up…</div>
 </div>__SCRIPT__</body></html>"""
 
 # Used when the splash page itself waits for the engine (Edge app window).
@@ -168,7 +168,7 @@ POLL_SCRIPT = """<script>
 var u="http://127.0.0.1:__PORT__/", n=0;
 function tick(){fetch(u+"_stcore/health",{mode:"no-cors",cache:"no-store"})
  .then(function(){location.replace(u);}).catch(function(){
-   if(++n>225){document.querySelector(".t").innerHTML="BankBridge could not start. "+
+   if(++n>225){document.querySelector(".t").innerHTML="BankBridgeNext could not start. "+
      "If it is already open in another window, please use that window.<br>Otherwise restart your computer and try again.";
      document.querySelector(".bar").style.display="none";return;}
    setTimeout(tick,400);});}

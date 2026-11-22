@@ -35,9 +35,9 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [],
     exclude_binaries=True,
-    name="BankBridge",
+    name="BankBridgeNext",
     console=False,                       # proper app: no black window
     icon="assets/bankbridge.ico",
     version=None,
 )
-coll = COLLECT(exe, a.binaries, a.datas, name="BankBridge")
+coll = COLLECT(exe, a.binaries, a.datas, name="BankBridgeNext")

@@ -1,5 +1,5 @@
 """
-BankBridge - user interface.
+Next - user interface.
 
 All statement parsing and QBO/CSV generation lives in engine.py, which is
 built automatically from your app.py. This file only draws the screen.
@@ -285,13 +285,13 @@ def file_stem(df, bank, account_type):
 # Screen
 # ---------------------------------------------------------------------------
 _ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "bankbridge.png")
-st.set_page_config(page_title="BankBridge", page_icon=_ICON if os.path.exists(_ICON) else "🌉", layout="wide",
+st.set_page_config(page_title="BankBridgeNext", page_icon=_ICON if os.path.exists(_ICON) else "🌉", layout="wide",
                    initial_sidebar_state="collapsed")
 st.markdown(CSS, unsafe_allow_html=True)
 html_block(
     f"""<div class="bb-appbar">
       <div class="bb-brand">{LOGO_SVG}
-        <div><div class="bb-name">BankBridge</div>
+        <div><div class="bb-name">BankBridgeNext</div>
         <div class="bb-tag">PDF bank &amp; credit-card statements → QuickBooks, reconciled</div></div>
       </div>
       <div class="bb-pill">🔒 Processed on this computer · nothing is uploaded</div>

@@ -46,7 +46,7 @@ echo Preparing the BankBridge engine from app.py...
 if errorlevel 1 ( echo app.py has an error - see the message above. & pause & exit /b 1 )
 
 echo Creating desktop shortcut...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\BankBridge.lnk'); $s.TargetPath='%~dp0.venv\Scripts\pythonw.exe'; $s.Arguments='\"%~dp0run_app.py\"'; $s.WorkingDirectory='%~dp0'; $s.IconLocation='%~dp0assets\bankbridge.ico'; $s.Description='BankBridge'; $s.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\BankBridgeNext.lnk'); $s.TargetPath='%~dp0.venv\Scripts\pythonw.exe'; $s.Arguments='\"%~dp0run_app.py\"'; $s.WorkingDirectory='%~dp0'; $s.IconLocation='%~dp0assets\bankbridge.ico'; $s.Description='BankBridge'; $s.Save()"
 
 echo.
 echo Setup complete. Open BankBridge from the new icon on your desktop.
