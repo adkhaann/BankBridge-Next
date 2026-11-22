@@ -41,15 +41,21 @@ EXTRACTORS = {
 
 
 def get_extractor(bank, account_type):
-    if (bank, account_type) not in getattr(eng, "SUPPORTED_COMBINATIONS", set()):
-        return None
     name = EXTRACTORS.get((bank, account_type))
-    return getattr(eng, name, None) if name else None
+    if name:
+        return getattr(eng, name, None)
+    if account_type in ("Personal Chequing", "Business Chequing", "Joint Chequing",
+                        "Personal Savings", "Business Savings", "Joint Savings",
+                        "High-Interest Savings", "Cash Management Account"):
+        return lambda data: eng.extract_universal_transactions(data, bank, account_type)
+    return None
 
 
 def make_qbo(df, info, account_type):
     """Same routing as the original app. Returns (qbo_text, note)."""
     bank = info.get("bank")
+    if info.get("universal"):
+        return None, "CSV available after reconciliation. QBO requires a verified institution and account mapping."
     if bank == "CIBC":
         try:
             return eng.generate_cibc_qbo(df, info, account_type), None
@@ -87,7 +93,19 @@ def reconcile(df, info):
     credit_count = int((df["Credit"] > 0).sum())
     rows, details, ok = [], [], False
 
-    if info["statement_type"] == "chequing":
+    if info.get("universal"):
+        c = info["control"]
+        calculated = round(c["opening"] + credit_total - debit_total, 2)
+        rows = [("Total debits", c["debit"], debit_total, "$"),
+                ("Total credits", c["credit"], credit_total, "$"),
+                ("Closing balance", c["closing"], calculated, "$")]
+        valid = (not df.empty and df["Date"].notna().all()
+                 and pd.to_datetime(df["Date"], errors="coerce").notna().all()
+                 and df["Description"].str.strip().ne("").all()
+                 and ((df["Debit"] > 0) ^ (df["Credit"] > 0)).all()
+                 and (df[["Debit", "Credit"]] >= 0).all().all())
+        ok = bool(valid and all(abs(expected - actual) < 0.01 for _, expected, actual, _ in rows))
+    elif info["statement_type"] == "chequing":
         c = info.get("control", {})
         if c.get("debit_total") is not None:
             rows.append(("Withdrawals / debits (count)", c.get("debit_count"), debit_count, "n"))
@@ -316,7 +334,9 @@ with left:
             key="bb_type",
         )
         extractor = get_extractor(bank, account_type)
-        if extractor:
+        if extractor and (bank, account_type) not in EXTRACTORS:
+            st.info("Experimental universal deposit parser. CSV only after reconciliation.")
+        elif extractor:
             st.markdown(f'<span class="bb-badge ok">● Supported — {html.escape(bank)} · '
                         f'{html.escape(account_type)}</span>', unsafe_allow_html=True)
         else:
