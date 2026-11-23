@@ -16,7 +16,7 @@
 2. Under **Artifacts**, download **BankBridgeNext-Windows-x64**. Artifacts are available for 14 days.
 3. Extract the entire ZIP into a folder and open `BankBridgeNext.exe`. Keep the companion files in the same folder.
 
-This is an unsigned development build. GitHub checks that the packaged app starts its local server. The packaged Windows app has also converted the synthetic TD fixture in an interactive check. Shortcut and QuickBooks import testing still need an interactive Windows session.
+This is an unsigned development build. GitHub runs a Windows browser test that converts the synthetic TD statement and checks the complete CSV download. The packaged Windows app has also converted the synthetic TD fixture in an interactive check. Shortcut and QuickBooks import testing still need an interactive Windows session.
 
 ### Update the portable Windows build
 

@@ -49,10 +49,6 @@ jobs:
         run: python -m pip install -r requirements.txt "pyinstaller==6.*"
       - name: Build BankBridgeNext
         run: python -m PyInstaller --noconfirm --clean BankBridge.spec
-      - name: Check the packaged dashboard
-        env:
-          PYTHONPATH: .
-        run: python tests/windows_package_smoke.py
       - name: Test Windows updater replacement and rollback
         shell: powershell
         run: .\tests\test_windows_updater.ps1
@@ -61,6 +57,12 @@ jobs:
         run: |
           Copy-Item windows/Update-BankBridgeNext.cmd,windows/Update-BankBridgeNext.ps1 dist/BankBridgeNext/
           Set-Content -Path dist/BankBridgeNext/BankBridgeNext.build -Value $env:GITHUB_SHA -Encoding ASCII
+      - name: Install browser test dependency
+        run: python -m pip install "playwright==1.58.0"
+      - name: Check packaged PDF-to-CSV conversion
+        env:
+          PYTHONPATH: .
+        run: python tests/windows_package_smoke.py
       - name: Add synthetic statements for manual testing
         if: github.event_name == 'push'
         env:
