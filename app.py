@@ -792,6 +792,9 @@ def extract_rbc_mastercard_transactions(pdf_bytes):
             amount = None
 
             for word in row:
+                # A dollar value in the description is not the transaction amount.
+                if word[0] < 305:
+                    continue
                 text = word[4].replace(",", "").strip()
 
                 if re.fullmatch(
