@@ -12,6 +12,7 @@ def rbc_statement(account="987-6543"):
     with fitz.open() as document:
         page = document.new_page()
         page.insert_text((32, 40), "\n".join([
+            "SYNTHETIC RBC BUSINESS CHEQUING SAMPLE",
             "January 1 to January 31, 2026",
             f"Account number: 12345 {account}",
             "Total deposits & credits (1) + 25.00",
