@@ -44,6 +44,22 @@ The updater is for the extracted portable app. A source checkout continues to up
 
 The RBC statement and account identifiers in this test are synthetic. Import acceptance and repeat-import behavior are pending verification.
 
+### First release candidate coverage
+
+The desktop conversion and export checks use synthetic PDFs. They cover the statement layouts listed here.
+
+| Institution | QuickBooks Online CSV | QuickBooks Desktop QBO generation |
+| --- | --- | --- |
+| TD Canada Trust | Business Chequing, Credit Card | Credit Card with full printed card number and closing balance |
+| RBC Royal Bank | Business Chequing, Mastercard | Business Chequing with printed transit, account and closing balance. Mastercard requires full printed card number and closing balance. |
+| BMO Bank of Montreal | Business Chequing, Mastercard | Mastercard with full printed card number and closing balance |
+| Scotiabank | Business Chequing | Requires a confirmed Web Connect mapping |
+| CIBC | Chequing, Savings, Visa | Chequing and Savings with the printed CIBC account and transit format. Visa requires full printed card number and closing balance. |
+
+The synthetic RBC Business Chequing QBO reached the QuickBooks Desktop review screen in a Windows test. Recording and repeat import still need to be confirmed. Other QBO rows describe file generation. QuickBooks acceptance requires testing with the corresponding account mapping. The experimental parser supports compatible layouts outside this table.
+
+For a QuickBooks Online import check, use a test company, upload a CSV through **Bank transactions → Upload from file**, and map **Date**, **Description**, and **Amount**. Choose the day/month/year date format. The synthetic TD sample should show two $10.00 payments and one $35.00 deposit.
+
 ### Convert a statement from another institution
 
 In the desktop app, choose **Other Canadian Bank / Credit Union** and select the account type. For a bank with a dedicated parser, select **Try experimental statement parser** to use the fallback on a different layout. Compatible statements can export CSV after reconciliation.
