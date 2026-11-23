@@ -60,6 +60,10 @@ The user confirmed the synthetic RBC Business Chequing QBO imported into QuickBo
 
 For a QuickBooks Online import check, use a test company, upload a CSV through **Bank transactions → Upload from file**, and map **Date**, **Description**, and **Amount**. Choose the day/month/year date format. The synthetic TD sample should show two $10.00 payments and one $35.00 deposit.
 
+### Convert a TD EasyWeb activity printout
+
+Choose **TD Canada Trust → Business Chequing** and use the dedicated parser. The activity printout must include the displayed date range, the withdrawals and deposits table with running balances, and the printed totals. Reconciled activity exports to CSV.
+
 ### Convert a statement from another institution
 
 In the desktop app, choose **Other Canadian Bank / Credit Union** and select the account type. For a bank with a dedicated parser, select **Try experimental statement parser** to use the fallback on a different layout. Compatible statements can export CSV after reconciliation.

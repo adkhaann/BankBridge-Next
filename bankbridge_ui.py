@@ -356,6 +356,8 @@ if not has_results:
 else:
     df, info = ss["bb_df"], ss["bb_info"]
     p_bank, p_type = ss["bb_bank_done"], ss["bb_type_done"]
+    if info.get("td_easyweb"):
+        st.caption("TD EasyWeb activity printout. Reconciliation uses the printed totals and running balances for the displayed period.")
     if info.get("currency") or info.get("universal"):
         st.caption(f"Statement currency: {info.get('currency') or 'Undetected'}. Import CSV into an account in the same currency.")
 

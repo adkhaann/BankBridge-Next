@@ -211,6 +211,87 @@ def get_chequing_account_id(text):
     return None
 
 
+def extract_td_easyweb_activity(document, full_text):
+    """Read TD browser-printed activity and verify printed totals and row balances."""
+    period_match = re.search(r"Your transactions for\s+([^\n]+?)\s+to\s+([^\n]+)", full_text, re.IGNORECASE)
+    if not period_match:
+        raise ValueError("The TD EasyWeb printout is missing the displayed transaction period.")
+    period = tuple(universal_statement_date(" ".join(date.split())) for date in period_match.groups())
+    rows, balances, source_pages = [], [], []
+    totals = []
+    boundaries = None
+    date_pattern = re.compile(r"^[A-Za-z]{3} \d{1,2}, \d{4}$")
+    for page in document:
+        lines = page.get_text(sort=True).splitlines()
+        for line in lines:
+            match = re.fullmatch(r"\s*Total\s*:\s+(\$[\d,]+\.\d{2})\s+(\$[\d,]+\.\d{2})\s*", line, re.IGNORECASE)
+            if match:
+                totals.append(tuple(universal_money_cents(amount) for amount in match.groups()))
+        words = page.get_text("words")
+        for date_heading in (word for word in words if word[4].casefold() == "date"):
+            nearby = sorted(
+                (word for word in words if abs(word[1] - date_heading[1]) <= 2),
+                key=lambda word: word[0],
+            )
+            if [word[4].casefold() for word in nearby] == [
+                "date", "transaction", "description", "withdrawals", "deposits", "balance"
+            ]:
+                _, _, _, withdrawal, deposit, balance = nearby
+                boundaries = (withdrawal[0], (withdrawal[2] + deposit[2]) / 2, (deposit[2] + balance[2]) / 2)
+                break
+        if boundaries is None:
+            continue
+
+        for month in sorted((word for word in words if word[0] < page.rect.width * 0.15
+                             and re.fullmatch(r"[A-Za-z]{3}", word[4])), key=lambda word: word[1]):
+            line = sorted(
+                (word for word in words if abs(word[1] - month[1]) <= 2),
+                key=lambda word: word[0],
+            )
+            date = " ".join(word[4] for word in line[:3])
+            if not date_pattern.fullmatch(date):
+                continue
+            fields = [[], [], [], []]
+            for word in line[3:]:
+                column = sum(word[2] > boundary for boundary in boundaries)
+                fields[column].append(word[4])
+            description, debit, credit, balance = (" ".join(field) for field in fields)
+            if not description or not balance or bool(debit) == bool(credit):
+                raise ValueError(f"An EasyWeb transaction has unclear columns on page {page.number + 1}.")
+            debit_cents = universal_money_cents(debit) if debit else 0
+            credit_cents = universal_money_cents(credit) if credit else 0
+            if min(debit_cents, credit_cents) < 0:
+                raise ValueError(f"An EasyWeb transaction has an invalid amount on page {page.number + 1}.")
+            rows.append((universal_statement_date(date), description, debit_cents, credit_cents))
+            balances.append(universal_money_cents(balance))
+            source_pages.append(page.number + 1)
+
+    if not rows or len(totals) != 1:
+        raise ValueError("Expected EasyWeb activity rows and one printed withdrawal/deposit total.")
+    rows.reverse()
+    balances.reverse()
+    source_pages.reverse()
+    dates = [row[0] for row in rows]
+    if dates != sorted(dates):
+        raise ValueError("The EasyWeb activity table must be printed in newest-first order.")
+    opening = balances[0] + rows[0][2] - rows[0][3]
+    if not statement_running_balances_match(rows, opening, balances, is_card=False):
+        raise ValueError("An EasyWeb printed running balance differs from the calculated balance.")
+    # Zero-dollar activity affects neither the ledger nor the CSV import.
+    nonzero = [index for index, row in enumerate(rows) if row[2] or row[3]]
+    debit, credit = totals[0]
+    frame = pd.DataFrame([rows[index] for index in nonzero], columns=["Date", "Description", "Debit", "Credit"])
+    frame[["Debit", "Credit"]] = frame[["Debit", "Credit"]] / 100
+    return frame, {
+        "td_easyweb": True, "statement_type": "chequing", "bank": "TD Canada Trust",
+        "currency": statement_currency(full_text), "period": period,
+        "control": {"opening": opening / 100, "closing": balances[-1] / 100,
+                    "debit": debit / 100, "credit": credit / 100},
+        "running_balances": [balances[index] / 100 for index in nonzero],
+        "source_pages": [source_pages[index] for index in nonzero],
+    }
+
+
 def extract_td_chequing_transactions(
     pdf_bytes
 ):
@@ -224,6 +305,10 @@ def extract_td_chequing_transactions(
 
     for page in doc:
         full_text += page.get_text("text") + "\n"
+
+    if re.search(r"Your transactions for\s+", full_text, re.IGNORECASE):
+        with doc:
+            return extract_td_easyweb_activity(doc, full_text)
 
     statement_year = (
         get_chequing_statement_year(
@@ -1183,6 +1268,8 @@ def extract_bmo_business_chequing_transactions(pdf_bytes):
 
 def reconcile_dedicated_deposit(frame, info):
     """Compare extracted transactions with the statement's printed controls."""
+    if info.get("td_easyweb"):
+        return reconcile_universal_transactions(frame, info)
     if info.get("bank") in ("BMO Bank of Montreal", "CIBC"):
         return reconcile_deposit_balances(frame, info)
     control = info.get("control", {})
@@ -2209,6 +2296,8 @@ def extract_td_credit_card_transactions(
 
 def make_qbo(df, info, account_type):
     """Route QBO only when the statement provides the required account data."""
+    if info.get("td_easyweb"):
+        return None, "TD EasyWeb activity printouts are eligible for reconciled CSV export."
     if info.get("universal"):
         return None, "QBO requires a verified institution and account mapping."
     currency = info.get("currency")
