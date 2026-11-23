@@ -16,7 +16,7 @@
 2. Under **Artifacts**, download **BankBridgeNext-Windows-x64**. Artifacts are available for 14 days.
 3. Extract the entire ZIP into a folder and open `BankBridgeNext.exe`. Keep the companion files in the same folder.
 
-This is an unsigned development build. GitHub runs a Windows browser test that checks the TD CSV and RBC QBO downloads, stable IDs on repeat download, and that a reconciliation mismatch blocks both exports. The packaged Windows app has also converted the synthetic TD fixture in an interactive check. Shortcut and QuickBooks import testing still need an interactive Windows session.
+This is an unsigned development build. GitHub runs a Windows browser test that checks the TD CSV and RBC QBO downloads, stable IDs on repeat download, and that a reconciliation mismatch blocks both exports. The packaged Windows app has also converted the synthetic TD fixture in an interactive check. The synthetic RBC QBO repeat-import check in QuickBooks Desktop and the synthetic TD CSV import check in QuickBooks Online also passed, as confirmed by the user.
 
 ### Update the portable Windows build
 
@@ -42,9 +42,9 @@ The updater is for the extracted portable app. A source checkout continues to up
 3. In a disposable QuickBooks Desktop test company, import the QBO using **File → Utilities → Import → Web Connect Files**. Check that the two transactions appear in the intended test account with the correct dates and amounts.
 4. Import the same file again and check whether QuickBooks adds any duplicate rows. If QuickBooks rejects the file, record its exact error and version.
 
-The RBC statement and account identifiers in this test are synthetic. Import acceptance and repeat-import behavior are pending verification.
+The RBC statement and account identifiers in this test are synthetic. The user confirmed the test import and repeat-import check passed.
 
-### First release candidate coverage
+### First release coverage
 
 The desktop conversion and export checks use synthetic PDFs. They cover the statement layouts listed here.
 
@@ -56,7 +56,7 @@ The desktop conversion and export checks use synthetic PDFs. They cover the stat
 | Scotiabank | Business Chequing | Requires a confirmed Web Connect mapping |
 | CIBC | Chequing, Savings, Visa | Chequing and Savings with the printed CIBC account and transit format. Visa requires full printed card number and closing balance. |
 
-The synthetic RBC Business Chequing QBO reached the QuickBooks Desktop review screen in a Windows test. Recording and repeat import still need to be confirmed. Other QBO rows describe file generation. QuickBooks acceptance requires testing with the corresponding account mapping. The experimental parser supports compatible layouts outside this table.
+The user confirmed the synthetic RBC Business Chequing QBO imported into QuickBooks Desktop and the repeat import offered no duplicate transactions. The user also confirmed the synthetic TD Business Chequing CSV import in QuickBooks Online. The other entries describe automated conversion and file generation. Production statement layouts and account mappings require their own verification. Simplii is deferred from this release scope.
 
 For a QuickBooks Online import check, use a test company, upload a CSV through **Bank transactions → Upload from file**, and map **Date**, **Description**, and **Amount**. Choose the day/month/year date format. The synthetic TD sample should show two $10.00 payments and one $35.00 deposit.
 
