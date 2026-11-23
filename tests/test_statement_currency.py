@@ -37,13 +37,13 @@ class StatementCurrencyTests(unittest.TestCase):
             parser(rbc_statement_with_currency("Currency: CAD", "Currency: USD"))
 
     def test_written_currency_names_feed_export_checks_on_both_routes(self):
-        pdf = rbc_statement_with_currency("Account currency: US Dollars", "Currency: USD")
+        pdf = rbc_statement_with_currency("Account currency: US Dollars (USD)", "Currency: USD")
         frame, info = engine.extract_rbc_business_chequing_transactions(pdf)
         self.assertEqual(info["currency"], "USD")
         self.assertIsNone(engine.make_qbo(frame, info, "Business Chequing")[0])
 
         pdf = statement_pdf([
-            "Devise du compte : dollars canadiens",
+            "Devise du compte : CAD (dollars canadiens)",
             "Opening balance: 100.00", "Closing balance: 90.00",
             "Total debits: 10.00", "Total credits: 0.00",
             "Date          Description         Debit    Credit",
@@ -57,3 +57,8 @@ class StatementCurrencyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "conflicting currencies"):
             engine.statement_currency("Currency:US Dollars\nDevise: CAD")
         self.assertIsNone(engine.statement_currency("Transaction in US dollars"))
+
+    def test_conflicting_name_and_code_on_one_label_stop_conversion(self):
+        pdf = rbc_statement_with_currency("Currency: CAD (US Dollars)")
+        with self.assertRaisesRegex(ValueError, "conflicting currencies in one label"):
+            engine.extract_rbc_business_chequing_transactions(pdf)

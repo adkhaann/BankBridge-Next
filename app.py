@@ -50,6 +50,16 @@ def printed_currency_code(line):
     value = " ".join(match.group(1).casefold().split())
     if re.fullmatch(r"[a-z]{3}", value):
         return value.upper()
+    # Accept both "US dollars (USD)" and "USD (US dollars)".
+    pair = re.fullmatch(r"([^()]+)\s*\(([^()]+)\)", value)
+    if pair:
+        first, second = (part.strip() for part in pair.groups())
+        code, name = (first, second) if re.fullmatch(r"[a-z]{3}", first) else (second, first)
+        named_code = STATEMENT_CURRENCY_NAMES.get(name)
+        if named_code and re.fullmatch(r"[a-z]{3}", code):
+            if named_code != code.upper():
+                raise ValueError("The statement declares conflicting currencies in one label.")
+            return named_code
     return STATEMENT_CURRENCY_NAMES.get(value)
 
 
