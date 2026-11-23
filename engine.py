@@ -2834,17 +2834,29 @@ UNIVERSAL_DEPOSIT_TYPES = (
 
 def universal_money_cents(value):
     """Parse a printed amount without binary rounding or currency assumptions."""
-    match = re.fullmatch(r"([+-]?)\$?(\d+|\d{1,3}(?:,\d{3})+)\.(\d{2})", value)
+    original = value
+    value = value.strip().replace("\u00a0", " ").replace("\u202f", " ")
+    if value.startswith("(") and value.endswith(")"):
+        negative = True
+        value = value[1:-1].strip()
+    elif value.endswith("-"):
+        negative = True
+        value = value[:-1].rstrip()
+    else:
+        negative = value.startswith("-")
+        if value.startswith(("-", "+")):
+            value = value[1:]
+
+    match = re.fullmatch(r"\$?(\d+|\d{1,3}(?:,\d{3})+)\.(\d{2})", value)
     grouping = ","
     if not match:
         grouping = " "
-        value = value.replace("\u00a0", " ").replace("\u202f", " ")
-        match = re.fullmatch(r"([+-]?)(\d+|\d{1,3}(?: \d{3})+),(\d{2})(?: ?\$)?", value)
+        match = re.fullmatch(r"(\d+|\d{1,3}(?: \d{3})+),(\d{2})(?: ?\$)?", value)
     if not match:
-        raise ValueError(f"Unrecognized amount: {value!r}.")
-    sign, whole, fraction = match.groups()
+        raise ValueError(f"Unrecognized amount: {original!r}.")
+    whole, fraction = match.groups()
     cents = int(whole.replace(grouping, "")) * 100 + int(fraction)
-    return -cents if sign == "-" else cents
+    return -cents if negative else cents
 
 
 UNIVERSAL_DATE_FORMATS = {
