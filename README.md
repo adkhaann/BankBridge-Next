@@ -18,6 +18,13 @@
 
 This is an unsigned development build. GitHub checks that the packaged app starts its local server. Desktop window, shortcut, and QuickBooks import testing require an interactive Windows session.
 
+### Verify a conversion
+
+1. Select **TD Canada Trust** and **Business Chequing**.
+2. Upload `samples/Synthetic-TD-Business-Chequing.pdf` from the extracted folder, then choose **Convert statement**.
+3. Confirm that the app shows **Reconciled**, with three transactions. The two January 5 fees are $10.00 each and the January 8 receipt is $35.00.
+4. Download the CSV. It should contain two `-10.0` amounts and one `35.0` amount. Use a test company if you try importing it into QuickBooks.
+
 ## Adding a new bank later
 1. Add the parser and its institution/account combination to DEDICATED_EXTRACTORS in app.py.
 2. If it has its own QBO generator, add a branch to make_qbo() in app.py.

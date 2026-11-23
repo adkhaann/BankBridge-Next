@@ -11,6 +11,7 @@ def td_statement():
     with fitz.open() as document:
         first = document.new_page()
         first.insert_text((32, 42), "\n".join([
+            "SYNTHETIC TD BUSINESS CHEQUING SAMPLE",
             "JAN 1/26 - JAN 31/26",
             "1234 5678-9876543",
             "Credits 1 35.00",
