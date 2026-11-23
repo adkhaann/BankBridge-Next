@@ -2914,9 +2914,25 @@ def universal_money_cents(value):
     return -cents if sign else cents
 
 
-def universal_statement_date(value):
-    # Numeric day/month dates are ambiguous unless a layout declares the order.
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%b %d, %Y"):
+UNIVERSAL_DATE_FORMATS = {
+    "DD/MM/YYYY": "%d/%m/%Y",
+    "MM/DD/YYYY": "%m/%d/%Y",
+    "JJ/MM/AAAA": "%d/%m/%Y",
+    "DD-MM-YYYY": "%d-%m-%Y",
+    "MM-DD-YYYY": "%m-%d-%Y",
+    "JJ-MM-AAAA": "%d-%m-%Y",
+    "YYYY/MM/DD": "%Y/%m/%d",
+    "YYYY-MM-DD": "%Y-%m-%d",
+    "AAAA/MM/JJ": "%Y/%m/%d",
+    "AAAA-MM-JJ": "%Y-%m-%d",
+}
+
+
+def universal_statement_date(value, declared_format=None):
+    formats = ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%b %d, %Y")
+    if declared_format:
+        formats += (declared_format,)
+    for fmt in formats:
         try:
             return datetime.strptime(value, fmt).date().isoformat()
         except ValueError:
@@ -2991,7 +3007,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     running_balances = []
     has_running_balance = None
     currencies = set()
-    period = None
+    printed_periods = []
+    date_format = None
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
         for page in document:
             lines = page.get_text(sort=True).splitlines()
@@ -3012,14 +3029,20 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     currencies.add(currency.group(1).upper())
                     continue
                 label, separator, value = line.replace("’", "'").partition(":")
-                if label.strip().lower() in ("statement period", "période du relevé"):
+                normalized_label = label.strip().casefold()
+                if normalized_label in ("date format", "format de date"):
+                    declared = UNIVERSAL_DATE_FORMATS.get(value.strip().upper())
+                    if declared is None:
+                        raise ValueError("The statement declares an unsupported date format.")
+                    if date_format is not None and date_format != declared:
+                        raise ValueError("The statement declares conflicting date formats.")
+                    date_format = declared
+                    continue
+                if normalized_label in ("statement period", "période du relevé"):
                     dates = re.split(r"\s+(?:to|au)\s+", value.strip(), flags=re.IGNORECASE)
                     if len(dates) != 2:
                         raise ValueError("Expected a statement period with a start and end date.")
-                    printed_period = tuple(universal_statement_date(date) for date in dates)
-                    if printed_period[0] > printed_period[1] or (period and period != printed_period):
-                        raise ValueError("The printed statement period is reversed or conflicts between pages.")
-                    period = printed_period
+                    printed_periods.append(dates)
                     continue
                 if not separator:
                     summary = re.fullmatch(
@@ -3057,13 +3080,23 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 credit_cents = 0 if credit in ("-", "—") else universal_money_cents(credit)
                 if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
                     raise ValueError(f"Expected one positive debit or credit on page {page.number + 1}.")
-                rows.append((universal_statement_date(date), description, debit_cents, credit_cents))
+                rows.append((date, description, debit_cents, credit_cents))
                 if has_running_balance:
                     running_balances.append(universal_money_cents(columns[4]))
     if not rows or not {"opening", "closing", "debit", "credit"} <= controls.keys():
         raise ValueError("Expected transaction rows and printed opening balance, closing balance, total debits and total credits.")
     if len(currencies) > 1:
         raise ValueError("The statement declares conflicting currencies.")
+    period = None
+    for dates in printed_periods:
+        printed_period = tuple(universal_statement_date(date, date_format) for date in dates)
+        if printed_period[0] > printed_period[1] or (period and period != printed_period):
+            raise ValueError("The printed statement period is reversed or conflicts between pages.")
+        period = printed_period
+    rows = [
+        (universal_statement_date(date, date_format), description, debit, credit)
+        for date, description, debit, credit in rows
+    ]
     balance = controls["opening"]
     for row, printed_balance in zip(rows, running_balances):
         balance += row[3] - row[2]
