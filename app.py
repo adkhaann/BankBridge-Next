@@ -2902,10 +2902,15 @@ UNIVERSAL_DEPOSIT_TYPES = (
 def universal_money_cents(value):
     """Parse a printed amount without binary rounding or currency assumptions."""
     match = re.fullmatch(r"(-?)\$?(\d+|\d{1,3}(?:,\d{3})+)\.(\d{2})", value)
+    grouping = ","
+    if not match:
+        grouping = " "
+        value = value.replace("\u00a0", " ").replace("\u202f", " ")
+        match = re.fullmatch(r"(-?)(\d+|\d{1,3}(?: \d{3})+),(\d{2})(?: ?\$)?", value)
     if not match:
         raise ValueError(f"Unrecognized amount: {value!r}.")
     sign, whole, fraction = match.groups()
-    cents = int(whole.replace(",", "")) * 100 + int(fraction)
+    cents = int(whole.replace(grouping, "")) * 100 + int(fraction)
     return -cents if sign else cents
 
 
@@ -2916,6 +2921,17 @@ def universal_statement_date(value):
             return datetime.strptime(value, fmt).date().isoformat()
         except ValueError:
             continue
+    french_months = (
+        "janvier", "février", "mars", "avril", "mai", "juin",
+        "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+    )
+    french_date = re.fullmatch(r"(\d{1,2})\s+([^\W\d_]+)\s+(\d{4})", value.casefold())
+    if french_date and french_date.group(2) in french_months:
+        day, month, year = french_date.groups()
+        try:
+            return datetime(int(year), french_months.index(month) + 1, int(day)).date().isoformat()
+        except ValueError:
+            pass
     raise ValueError(f"Unrecognized or ambiguous transaction date: {value!r}.")
 
 
@@ -2957,10 +2973,18 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         "number of withdrawals": "debit_count", "number of debits": "debit_count",
         "number of deposits": "credit_count", "number of credits": "credit_count",
         "transaction count": "transaction_count", "number of transactions": "transaction_count",
+        "solde d'ouverture": "opening", "solde de clôture": "closing",
+        "total des débits": "debit", "total des retraits": "debit",
+        "total des crédits": "credit", "total des dépôts": "credit",
+        "nombre de débits": "debit_count", "nombre de retraits": "debit_count",
+        "nombre de crédits": "credit_count", "nombre de dépôts": "credit_count",
+        "nombre de transactions": "transaction_count",
     }
     headers = {
         ("date", "description", "debit", "credit"),
         ("date", "description", "withdrawals", "deposits"),
+        ("date", "description", "débit", "crédit"),
+        ("date", "description", "retraits", "dépôts"),
     }
     controls = {}
     rows = []
@@ -2983,13 +3007,13 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     raise ValueError(f"Local OCR found no readable text on page {page.number + 1}.")
             for line in lines:
                 line = line.strip()
-                currency = re.fullmatch(r"Currency\s*:?\s*([A-Z]{3})", line, re.IGNORECASE)
+                currency = re.fullmatch(r"(?:Currency|Devise)\s*:?\s*([A-Z]{3})", line, re.IGNORECASE)
                 if currency:
                     currencies.add(currency.group(1).upper())
                     continue
-                label, separator, value = line.partition(":")
-                if label.strip().lower() == "statement period":
-                    dates = re.split(r"\s+to\s+", value.strip(), flags=re.IGNORECASE)
+                label, separator, value = line.replace("’", "'").partition(":")
+                if label.strip().lower() in ("statement period", "période du relevé"):
+                    dates = re.split(r"\s+(?:to|au)\s+", value.strip(), flags=re.IGNORECASE)
                     if len(dates) != 2:
                         raise ValueError("Expected a statement period with a start and end date.")
                     printed_period = tuple(universal_statement_date(date) for date in dates)
@@ -2999,7 +3023,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     continue
                 if not separator:
                     summary = re.fullmatch(
-                        r"(" + "|".join(labels) + r")\s+(.+)", line, re.IGNORECASE
+                        r"(" + "|".join(labels) + r")\s+(.+)", label, re.IGNORECASE
                     )
                     if summary:
                         label, value = summary.groups()
@@ -3018,7 +3042,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     continue
                 columns = re.split(r"\t+| {2,}", line)
                 headings = tuple(column.strip().lower() for column in columns)
-                if headings[:4] in headers and headings[4:] in ((), ("balance",)):
+                if headings[:4] in headers and headings[4:] in ((), ("balance",), ("solde",)):
                     running = len(headings) == 5
                     if has_running_balance is not None and running != has_running_balance:
                         raise ValueError("Transaction headings changed between pages.")
