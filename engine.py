@@ -2874,7 +2874,7 @@ UNIVERSAL_DATE_FORMATS = {
 
 
 def universal_statement_date(value, declared_format=None):
-    formats = ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%b %d, %Y")
+    formats = ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%b %d, %Y", "%B %d, %Y")
     if declared_format:
         formats += (declared_format,)
     for fmt in formats:
@@ -3080,7 +3080,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     date_format = declared
                     continue
                 if normalized_label in ("statement period", "période du relevé"):
-                    dates = re.split(r"\s+(?:to|au)\s+", value.strip(), flags=re.IGNORECASE)
+                    dates = re.split(r"\s+(?:to|au|[-–—])\s+", value.strip(), flags=re.IGNORECASE)
                     if len(dates) != 2:
                         raise ValueError("Expected a statement period with a start and end date.")
                     printed_periods.append(dates)
