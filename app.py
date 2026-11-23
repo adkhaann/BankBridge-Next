@@ -3042,6 +3042,19 @@ def detect_statement_selection(pdf_bytes):
     return {key: next(iter(values)) for key, values in matches.items() if len(values) == 1}
 
 
+def render_statement_page(pdf_bytes, page_number):
+    """Render a bounded, in-memory preview of one 1-based PDF page."""
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
+        if not 1 <= page_number <= len(document):
+            raise ValueError("The selected PDF page is unavailable.")
+        page = document[page_number - 1]
+        longest_side = max(page.rect.width, page.rect.height)
+        if longest_side <= 0:
+            raise ValueError("The selected PDF page has no visible area.")
+        scale = min(2, 1600 / longest_side)
+        return page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False).tobytes("png")
+
+
 def fixed_width_column_starts(line, columns):
     starts = []
     offset = 0

@@ -38,3 +38,22 @@ class SourcePageTests(unittest.TestCase):
             self.assertFalse(ui.exception)
             self.assertEqual(ui.dataframe[0].value["SourcePage"].tolist(), [1, 2])
             self.assertTrue(ui.get("download_button"))
+            with patch("streamlit.image") as preview:
+                preview_toggle = next(box for box in ui.checkbox if box.label == "Preview original PDF")
+                preview_toggle.check().run()
+                ui.selectbox(key="bb_preview_page_1").set_value(2).run()
+                image, = preview.call_args.args
+                self.assertTrue(image.startswith(b"\x89PNG\r\n\x1a\n"))
+                self.assertIn("page 2", preview.call_args.kwargs["caption"])
+                self.assertTrue(ui.get("download_button"))
+
+    def test_page_preview_is_bounded_and_one_based(self):
+        import fitz
+
+        image = engine.render_statement_page(multi_page_statement(), 2)
+        pixmap = fitz.Pixmap(image)
+        self.assertLessEqual(max(pixmap.width, pixmap.height), 1600)
+        for page in (0, 3):
+            with self.subTest(page=page):
+                with self.assertRaisesRegex(ValueError, "unavailable"):
+                    engine.render_statement_page(multi_page_statement(), page)

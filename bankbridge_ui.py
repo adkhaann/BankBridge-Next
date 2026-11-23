@@ -358,6 +358,18 @@ else:
                 edited["Debit"] = pd.to_numeric(edited["Debit"], errors="coerce").fillna(0.0)
                 edited["Credit"] = pd.to_numeric(edited["Credit"], errors="coerce").fillna(0.0)
                 edited["Description"] = edited["Description"].fillna("").astype(str)
+                if info.get("source_pages") and uploaded is not None:
+                    if st.checkbox("Preview original PDF", key=f"bb_preview_{ss['bb_run']}"):
+                        page_number = st.selectbox(
+                            "PDF page to preview", sorted(set(info["source_pages"])),
+                            key=f"bb_preview_page_{ss['bb_run']}",
+                        )
+                        try:
+                            page_image = eng.render_statement_page(uploaded.getvalue(), page_number)
+                            st.image(page_image, caption=f"Original PDF · page {page_number}", width="stretch")
+                        except (RuntimeError, ValueError):
+                            st.warning("The selected PDF page could not be displayed.")
+
 
             rec = reconcile(edited, info)
 
