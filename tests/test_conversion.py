@@ -57,3 +57,51 @@ class ExistingConversionTests(unittest.TestCase):
             ["05/01/2026", "Synthetic debit", "-10.0"],
             ["08/01/2026", "Synthetic credit", "25.0"],
         ])
+
+
+class UniversalDepositTests(unittest.TestCase):
+    headings = "Date             Description       Debit    Credit    Balance"
+    first = [
+        "Currency: USD", "Opening balance: 100.00", "Total debits: 10.00",
+        "Total credits: 25.00", "Closing balance: 115.00", "Transaction count: 2",
+        headings, "2026-01-05       Synthetic debit   10.00    -         90.00",
+    ]
+    second = [headings, "08 Jan 2026      Synthetic credit  -        25.00     115.00"]
+
+    def parse(self, first=None, second=None):
+        return engine.extract_universal_transactions(
+            statement_pdf(first or self.first, second or self.second),
+            "Other Canadian Bank / Credit Union", "Personal Savings",
+        )
+
+    def test_unknown_institution_two_pages_dates_currency_and_csv(self):
+        frame, info = self.parse()
+        self.assertEqual(frame["Date"].tolist(), ["2026-01-05", "2026-01-08"])
+        self.assertEqual(info["currency"], "USD")
+        self.assertIsNone(info["account_id"])
+        self.assertTrue(engine.reconcile_universal_transactions(frame, info)[1])
+        self.assertIn("08/01/2026,Synthetic credit,25.0", engine.generate_quickbooks_csv(frame))
+
+    def test_printed_totals_and_counts_are_independent(self):
+        for original, changed in (
+            ("Transaction count: 2", "Transaction count: 3"),
+            ("Total debits: 10.00", "Total debits: 9.99"),
+            ("Closing balance: 115.00", "Closing balance: 115.01"),
+        ):
+            with self.subTest(control=original):
+                frame, info = self.parse([changed if line == original else line for line in self.first])
+                self.assertFalse(engine.reconcile_universal_transactions(frame, info)[1])
+
+    def test_reordered_rows_fail_running_balance_check_after_editing(self):
+        frame, info = self.parse()
+        self.assertFalse(engine.reconcile_universal_transactions(frame.iloc[::-1], info)[1])
+
+    def test_one_cent_running_balance_difference_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "running balance"):
+            self.parse(second=[self.headings, self.second[1].replace("115.00", "115.01")])
+
+    def test_missing_controls_and_ambiguous_dates_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "printed opening balance"):
+            self.parse([line for line in self.first if not line.startswith("Opening")])
+        with self.assertRaisesRegex(ValueError, "ambiguous transaction date"):
+            self.parse(second=[self.headings, self.second[1].replace("08 Jan 2026", "01/08/2026")])

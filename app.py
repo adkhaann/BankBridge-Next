@@ -2833,6 +2833,164 @@ def generate_cibc_qbo(df, info, account_type):
 # statements. This protects the working TD logic.
 # =========================================================
 
+UNIVERSAL_DEPOSIT_TYPES = (
+    "Personal Chequing", "Business Chequing", "Joint Chequing",
+    "Personal Savings", "Business Savings", "Joint Savings",
+    "High-Interest Savings", "Cash Management Account",
+)
+
+
+def universal_money_cents(value):
+    """Parse a printed amount without binary rounding or currency assumptions."""
+    match = re.fullmatch(r"(-?)\$?(\d+|\d{1,3}(?:,\d{3})+)\.(\d{2})", value)
+    if not match:
+        raise ValueError(f"Unrecognized amount: {value!r}.")
+    sign, whole, fraction = match.groups()
+    cents = int(whole.replace(",", "")) * 100 + int(fraction)
+    return -cents if sign else cents
+
+
+def universal_statement_date(value):
+    # Numeric day/month dates are ambiguous unless a layout declares the order.
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%b %d, %Y"):
+        try:
+            return datetime.strptime(value, fmt).date().isoformat()
+        except ValueError:
+            continue
+    raise ValueError(f"Unrecognized or ambiguous transaction date: {value!r}.")
+
+
+def extract_universal_transactions(pdf_bytes, bank, account_type):
+    """Read explicit deposit columns and independently printed statement controls."""
+    if account_type not in UNIVERSAL_DEPOSIT_TYPES:
+        raise ValueError("The experimental parser supports deposit statements only.")
+    labels = {
+        "opening balance": "opening", "beginning balance": "opening",
+        "closing balance": "closing", "ending balance": "closing",
+        "total withdrawals": "debit", "total debits": "debit",
+        "total deposits": "credit", "total credits": "credit",
+        "number of withdrawals": "debit_count", "number of debits": "debit_count",
+        "number of deposits": "credit_count", "number of credits": "credit_count",
+        "transaction count": "transaction_count", "number of transactions": "transaction_count",
+    }
+    headers = {
+        ("date", "description", "debit", "credit"),
+        ("date", "description", "withdrawals", "deposits"),
+    }
+    controls = {}
+    rows = []
+    running_balances = []
+    has_running_balance = None
+    currencies = set()
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
+        for page in document:
+            lines = page.get_text(sort=True).splitlines()
+            if not any(line.strip() for line in lines):
+                raise ValueError(f"Page {page.number + 1} has no readable text. Use a text PDF.")
+            for line in lines:
+                line = line.strip()
+                currency = re.fullmatch(r"Currency\s*:?\s*([A-Z]{3})", line, re.IGNORECASE)
+                if currency:
+                    currencies.add(currency.group(1).upper())
+                    continue
+                label, separator, value = line.partition(":")
+                if not separator:
+                    summary = re.fullmatch(
+                        r"(" + "|".join(labels) + r")\s+(.+)", line, re.IGNORECASE
+                    )
+                    if summary:
+                        label, value = summary.groups()
+                key = labels.get(label.strip().lower())
+                if key:
+                    value = value.strip()
+                    if key.endswith("_count"):
+                        if not re.fullmatch(r"[0-9]+", value):
+                            raise ValueError(f"Unrecognized printed {label.lower()}.")
+                        recorded = int(value)
+                    else:
+                        recorded = universal_money_cents(value)
+                    if key in controls and controls[key] != recorded:
+                        raise ValueError(f"Conflicting printed {label.lower()}.")
+                    controls[key] = recorded
+                    continue
+                columns = re.split(r"\t+| {2,}", line)
+                headings = tuple(column.strip().lower() for column in columns)
+                if headings[:4] in headers and headings[4:] in ((), ("balance",)):
+                    running = len(headings) == 5
+                    if has_running_balance is not None and running != has_running_balance:
+                        raise ValueError("Transaction headings changed between pages.")
+                    has_running_balance = running
+                    continue
+                if not re.match(r"(?:\d{1,4}[-/. ]|[A-Za-z]{3}\s+\d{1,2},)", line):
+                    continue
+                if has_running_balance is None or len(columns) != 4 + has_running_balance:
+                    raise ValueError(f"Unrecognized transaction columns on page {page.number + 1}.")
+                date, description, debit, credit = columns[:4]
+                debit_cents = 0 if debit in ("-", "—") else universal_money_cents(debit)
+                credit_cents = 0 if credit in ("-", "—") else universal_money_cents(credit)
+                if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
+                    raise ValueError(f"Expected one positive debit or credit on page {page.number + 1}.")
+                rows.append((universal_statement_date(date), description, debit_cents, credit_cents))
+                if has_running_balance:
+                    running_balances.append(universal_money_cents(columns[4]))
+    if not rows or not {"opening", "closing", "debit", "credit"} <= controls.keys():
+        raise ValueError("Expected transaction rows and printed opening balance, closing balance, total debits and total credits.")
+    if len(currencies) > 1:
+        raise ValueError("The statement declares conflicting currencies.")
+    balance = controls["opening"]
+    for row, printed_balance in zip(rows, running_balances):
+        balance += row[3] - row[2]
+        if balance != printed_balance:
+            raise ValueError("A printed running balance differs from the calculated balance.")
+    frame = pd.DataFrame(rows, columns=["Date", "Description", "Debit", "Credit"])
+    frame[["Debit", "Credit"]] = frame[["Debit", "Credit"]] / 100
+    return frame, {
+        "bank": bank, "account_type": account_type, "statement_type": "chequing",
+        "currency": next(iter(currencies), None), "account_id": None, "universal": True,
+        "control": {key: value if key.endswith("_count") else value / 100
+                    for key, value in controls.items()},
+        "running_balances": [balance / 100 for balance in running_balances],
+    }
+
+
+def reconcile_universal_transactions(frame, info):
+    control = info["control"]
+    debits = frame["Debit"]
+    credits = frame["Credit"]
+    debit_total = round(float(debits.sum()), 2)
+    credit_total = round(float(credits.sum()), 2)
+    calculated = round(control["opening"] + credit_total - debit_total, 2)
+    rows = [
+        ("Total debits", control["debit"], debit_total, "$"),
+        ("Total credits", control["credit"], credit_total, "$"),
+        ("Closing balance", control["closing"], calculated, "$"),
+    ]
+    for key, label, actual in (
+        ("debit_count", "Debit count", int((debits > 0).sum())),
+        ("credit_count", "Credit count", int((credits > 0).sum())),
+        ("transaction_count", "Transaction count", len(frame)),
+    ):
+        if key in control:
+            rows.append((label, control[key], actual, "n"))
+    balances = info.get("running_balances", [])
+    if balances:
+        calculated_balances = (control["opening"] + (credits - debits).cumsum()).round(2)
+        matches = sum(expected == actual for expected, actual in zip(balances, calculated_balances))
+        rows.append(("Running balances matched", len(balances), matches, "n"))
+        rows.append(("Rows with printed balances", len(balances), len(frame), "n"))
+
+    amounts = frame[["Debit", "Credit"]]
+    valid = (
+        not frame.empty
+        and pd.to_datetime(frame["Date"], format="%Y-%m-%d", errors="coerce").notna().all()
+        and frame["Description"].fillna("").str.strip().ne("").all()
+        and ((debits > 0) ^ (credits > 0)).all()
+        and (amounts >= 0).all().all()
+        and amounts.eq(amounts.round(2)).all().all()
+    )
+    return rows, bool(valid and all(expected == actual for _, expected, actual, _ in rows))
+
+
 CANADIAN_BANKS = [
     "TD Canada Trust",
     "RBC Royal Bank",

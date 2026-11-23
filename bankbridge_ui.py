@@ -44,9 +44,7 @@ def get_extractor(bank, account_type):
     name = EXTRACTORS.get((bank, account_type))
     if name:
         return getattr(eng, name, None)
-    if account_type in ("Personal Chequing", "Business Chequing", "Joint Chequing",
-                        "Personal Savings", "Business Savings", "Joint Savings",
-                        "High-Interest Savings", "Cash Management Account"):
+    if account_type in eng.UNIVERSAL_DEPOSIT_TYPES:
         return lambda data: eng.extract_universal_transactions(data, bank, account_type)
     return None
 
@@ -94,17 +92,7 @@ def reconcile(df, info):
     rows, details, ok = [], [], False
 
     if info.get("universal"):
-        c = info["control"]
-        calculated = round(c["opening"] + credit_total - debit_total, 2)
-        rows = [("Total debits", c["debit"], debit_total, "$"),
-                ("Total credits", c["credit"], credit_total, "$"),
-                ("Closing balance", c["closing"], calculated, "$")]
-        valid = (not df.empty and df["Date"].notna().all()
-                 and pd.to_datetime(df["Date"], errors="coerce").notna().all()
-                 and df["Description"].str.strip().ne("").all()
-                 and ((df["Debit"] > 0) ^ (df["Credit"] > 0)).all()
-                 and (df[["Debit", "Credit"]] >= 0).all().all())
-        ok = bool(valid and all(abs(expected - actual) < 0.01 for _, expected, actual, _ in rows))
+        rows, ok = eng.reconcile_universal_transactions(df, info)
     elif info["statement_type"] == "chequing":
         c = info.get("control", {})
         if c.get("debit_total") is not None:
@@ -337,7 +325,7 @@ with left:
         if extractor and (bank, account_type) not in EXTRACTORS:
             st.info("Experimental universal deposit parser. CSV only after reconciliation.")
         elif extractor:
-            st.markdown(f'<span class="bb-badge ok">● Supported — {html.escape(bank)} · '
+            st.markdown(f'<span class="bb-badge ok">● Dedicated parser — {html.escape(bank)} · '
                         f'{html.escape(account_type)}</span>', unsafe_allow_html=True)
         else:
             st.markdown('<span class="bb-badge no">● Coming soon — this statement type is not '
@@ -381,6 +369,8 @@ if not has_results:
 else:
     df, info = ss["bb_df"], ss["bb_info"]
     p_bank, p_type = ss["bb_bank_done"], ss["bb_type_done"]
+    if info.get("universal"):
+        st.caption(f"Statement currency: {info['currency'] or 'Undetected'}. Use a QuickBooks account in the same currency.")
 
     st.write("")
     kpi_slot = st.empty()  # summary tiles appear above the table
