@@ -3111,8 +3111,8 @@ def simplii_positioned_lines(words):
 def normalize_simplii_chequing_table(lines, page_number):
     """Adapt the two-date Simplii table while retaining printed balance and amounts."""
     heading = re.compile(
-        r"^\s*trans\.(?: date)? {2,}eff\.(?: date)? {2,}transaction {2,}"
-        r"(funds out) {2,}(funds in) {2,}(balance)\s*$", re.IGNORECASE
+        r"^\s*trans\.?\s+(?:date\s+)?eff\.?\s+(?:date\s+)?transaction\s+"
+        r"(funds\s+out)\s+(funds\s+in)\s+(balance)\s*$", re.IGNORECASE
     )
     transaction = re.compile(r"^\s*([A-Za-z]{3} \d{1,2}) {2,}[A-Za-z]{3} \d{1,2} {2,}(.+)$")
     header_ends = None
@@ -3155,7 +3155,7 @@ def normalize_simplii_chequing_table(lines, page_number):
             continue
         seen_transaction = True
         normalized.append("  ".join([date, description, *columns]))
-    return normalized, previous_balance
+    return (normalized if header_ends else None), previous_balance
 
 
 def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=False):
@@ -3237,11 +3237,10 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 if not any(line.strip() for line in lines):
                     raise ValueError(f"Local OCR found no readable text on page {page.number + 1}.")
             if bank == "Simplii Financial" and not is_card:
-                if any(re.search(r"trans\..*eff\..*funds out.*funds in", line, re.IGNORECASE) for line in lines):
-                    positioned = simplii_positioned_lines(page.get_text("words", textpage=text_page))
-                    lines, forward = normalize_simplii_chequing_table(positioned, page.number + 1)
-                else:
-                    forward = None
+                positioned = simplii_positioned_lines(page.get_text("words", textpage=text_page))
+                table_lines, forward = normalize_simplii_chequing_table(positioned, page.number + 1)
+                if table_lines is not None:
+                    lines = table_lines
                 if forward is not None and page.number > 0:
                     preceding_balance = running_balances[-1] if running_balances else controls.get("opening")
                     if universal_money_cents(forward) != preceding_balance:

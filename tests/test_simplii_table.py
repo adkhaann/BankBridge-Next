@@ -59,8 +59,8 @@ class SimpliiTableTests(unittest.TestCase):
                 "Total funds out: 10.00", "Total funds in: 25.00", "Closing balance: 115.00",
             ]), fontsize=10)
             for y, fields in (
-                (108, [(20, "trans."), (74, "eff."), (128, "transaction"), (450, "funds out"),
-                       (540, "funds in"), (620, "balance")]),
+                (108, [(20, "trans."), (74, "eff."), (128, "transaction"), (450, "funds  out"),
+                       (540, "funds  in"), (620, "balance")]),
                 (120, [(20, "date"), (74, "date")]),
                 (140, [(20, "Sep 28"), (74, "Sep 28"), (128, "BALANCE FORWARD"), (628, "100.00")]),
                 (160, [(20, "Sep 29"), (74, "Sep 30"), (128, "Synthetic fee"),
