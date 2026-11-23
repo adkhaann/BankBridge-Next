@@ -56,3 +56,27 @@ class SignedCardTests(unittest.TestCase):
             self.convert("30.00 CR", "20.00 DR")
         with self.assertRaisesRegex(ValueError, "separate sign"):
             self.convert("30.00 DR", "-20.00 CR")
+
+    def test_continuation_balance_resolves_equal_charge_and_credit_totals(self):
+        def convert(carry):
+            pdf = statement_pdf(
+                [
+                    "Previous balance: 100.00", "New balance: 100.00",
+                    "Total charges: 30.00", "Total payments and credits: 30.00",
+                    "Date          Description          Amount",
+                    "2026-01-05    Synthetic charge      30.00",
+                ],
+                [f"Balance forward: {carry}", "2026-01-08    Synthetic payment     -30.00"],
+            )
+            return engine.extract_universal_transactions(pdf, "Other", "Credit Card")
+
+        for carry, expected in (
+            ("130.00", [[30.0, 0.0], [0.0, 30.0]]),
+            ("70.00", [[0.0, 30.0], [30.0, 0.0]]),
+        ):
+            with self.subTest(carry=carry):
+                frame, info = convert(carry)
+                self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), expected)
+                self.assertTrue(engine.reconcile_statement(frame, info)[1])
+        with self.assertRaisesRegex(ValueError, "balance forward on page 2"):
+            convert("130.01")

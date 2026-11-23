@@ -3400,13 +3400,28 @@ def statement_running_balances_match(rows, opening, running_balances, *, is_card
     return True
 
 
-def classify_signed_card_rows(rows, controls, running_balances, marked_rows):
+def mismatched_balance_forward_page(rows, opening, carried_balances, *, is_card):
+    calculated = opening
+    previous_row_count = 0
+    for row_count, page_number, printed in carried_balances:
+        calculated += sum(
+            debit - credit if is_card else credit - debit
+            for _, _, debit, credit in rows[previous_row_count:row_count]
+        )
+        if printed != calculated:
+            return page_number
+        previous_row_count = row_count
+    return None
+
+
+def classify_signed_card_rows(rows, controls, running_balances, marked_rows, carried_balances):
     reversed_rows = [
         row if index in marked_rows else (row[0], row[1], row[3], row[2])
         for index, row in enumerate(rows)
     ]
     candidates = (rows,) if reversed_rows == rows else (rows, reversed_rows)
     matches = []
+    failed_page = None
     for candidate in candidates:
         charges = sum(debit for _, _, debit, _ in candidate)
         credits = sum(credit for _, _, _, credit in candidate)
@@ -3414,9 +3429,16 @@ def classify_signed_card_rows(rows, controls, running_balances, marked_rows):
             continue
         if controls["opening"] + charges - credits != controls["closing"]:
             continue
-        if statement_running_balances_match(candidate, controls["opening"], running_balances, is_card=True):
+        if not statement_running_balances_match(candidate, controls["opening"], running_balances, is_card=True):
+            continue
+        page = mismatched_balance_forward_page(candidate, controls["opening"], carried_balances, is_card=True)
+        if page is None:
             matches.append(candidate)
+        else:
+            failed_page = page
     if not matches:
+        if failed_page is not None:
+            raise ValueError(f"The printed balance forward on page {failed_page} differs from the calculated balance.")
         raise ValueError("The signed card amounts do not match the printed totals and balances.")
     if len(matches) != 1:
         raise ValueError("The signed card amounts are ambiguous. Both sign conventions match the printed controls.")
@@ -3661,21 +3683,14 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         for date, description, debit, credit in rows
     ]
     if is_card and layout[0] == 3:
-        rows = classify_signed_card_rows(rows, controls, running_balances, marked_rows)
-    elif not statement_running_balances_match(rows, controls["opening"], running_balances, is_card=is_card):
-        raise ValueError("A printed running balance differs from the calculated balance.")
-    carried_checks = []
-    calculated = controls["opening"]
-    previous_row_count = 0
-    for row_count, page_number, printed in carried_balances:
-        calculated += sum(
-            debit - credit if is_card else credit - debit
-            for _, _, debit, credit in rows[previous_row_count:row_count]
-        )
-        previous_row_count = row_count
-        if printed != calculated:
-            raise ValueError(f"The printed balance forward on page {page_number} differs from the calculated balance.")
-        carried_checks.append((row_count, page_number, printed / 100))
+        rows = classify_signed_card_rows(rows, controls, running_balances, marked_rows, carried_balances)
+    else:
+        if not statement_running_balances_match(rows, controls["opening"], running_balances, is_card=is_card):
+            raise ValueError("A printed running balance differs from the calculated balance.")
+        page = mismatched_balance_forward_page(rows, controls["opening"], carried_balances, is_card=is_card)
+        if page is not None:
+            raise ValueError(f"The printed balance forward on page {page} differs from the calculated balance.")
+    carried_checks = [(count, page, printed / 100) for count, page, printed in carried_balances]
     frame = pd.DataFrame(rows, columns=["Date", "Description", "Debit", "Credit"])
     frame[["Debit", "Credit"]] = frame[["Debit", "Credit"]] / 100
     return frame, {
