@@ -320,8 +320,8 @@ if not has_results:
 else:
     df, info = ss["bb_df"], ss["bb_info"]
     p_bank, p_type = ss["bb_bank_done"], ss["bb_type_done"]
-    if info.get("universal"):
-        st.caption(f"Statement currency: {info['currency'] or 'Undetected'}. Use a QuickBooks account in the same currency.")
+    if info.get("currency") or info.get("universal"):
+        st.caption(f"Statement currency: {info.get('currency') or 'Undetected'}. Import CSV into an account in the same currency.")
 
     st.write("")
     kpi_slot = st.empty()  # summary tiles appear above the table

@@ -30,6 +30,20 @@ st.divider()
 # GENERAL HELPERS
 # =========================================================
 
+STATEMENT_CURRENCY_PATTERN = r"(?:Currency|Devise)\s*:?\s*([A-Z]{3})"
+
+
+def statement_currency(full_text):
+    codes = set()
+    for line in full_text.splitlines():
+        match = re.fullmatch(STATEMENT_CURRENCY_PATTERN, line.strip(), re.IGNORECASE)
+        if match:
+            codes.add(match.group(1).upper())
+    if len(codes) > 1:
+        raise ValueError("The statement declares conflicting currencies.")
+    return next(iter(codes), None)
+
+
 def clean_amount(value):
 
     if value is None:
@@ -477,6 +491,7 @@ def extract_td_chequing_transactions(
         ).fillna(0)
 
     statement_info = {
+        "currency": statement_currency(full_text),
         "statement_type": "chequing",
         "bank": "TD Canada Trust",
         "control": controls,
@@ -580,6 +595,7 @@ def extract_rbc_business_chequing_transactions(pdf_bytes):
         "debit_total": clean_amount(debit_total) if debit_total else None
     }
     return df, {
+        "currency": statement_currency(full_text),
         "statement_type": "chequing", "bank": "RBC Royal Bank",
         "control": controls, "account_id": account_id,
         "branch_id": branch_id,
@@ -889,6 +905,7 @@ def extract_rbc_mastercard_transactions(pdf_bytes):
         ).reset_index(drop=True)
 
     statement_info = {
+        "currency": statement_currency(full_text),
         "statement_type": "credit_card",
         "bank": "RBC Royal Bank",
         "account_id": summary["account_id"],
@@ -1187,6 +1204,7 @@ def extract_bmo_business_chequing_transactions(pdf_bytes):
     )}
 
     return df, {
+        "currency": statement_currency(full_text),
         "statement_type": "chequing",
         "bank": "BMO Bank of Montreal",
         "control": controls,
@@ -1377,6 +1395,7 @@ def extract_bmo_credit_card_transactions(pdf_bytes):
         df["Credit"] = pd.to_numeric(df["Credit"], errors="coerce").fillna(0.0)
 
     return df, {
+        "currency": statement_currency(full_text),
         "statement_type": "credit_card",
         "bank": "BMO Bank of Montreal",
         "account_id": summary["account_id"],
@@ -1717,6 +1736,7 @@ def extract_scotiabank_business_chequing_transactions(pdf_bytes):
     }
 
     return df, {
+        "currency": statement_currency(full_text),
         "statement_type": "chequing",
         "bank": "Scotiabank",
         "control": controls,
@@ -2229,6 +2249,7 @@ def extract_td_credit_card_transactions(
         ).fillna(0)
 
     statement_info = {
+        "currency": statement_currency(full_text),
         "statement_type": "credit_card",
         "summary": summary,
         "account_id": account_id
@@ -2245,6 +2266,9 @@ def make_qbo(df, info, account_type):
     """Route QBO only when the statement provides the required account data."""
     if info.get("universal"):
         return None, "QBO requires a verified institution and account mapping."
+    currency = info.get("currency")
+    if currency and currency != "CAD":
+        return None, f"QuickBooks Desktop export is unavailable for {currency}. Import the CSV into an account in the same currency."
     bank = info.get("bank", "TD Canada Trust")
     account_id = info.get("account_id")
     try:
@@ -2770,6 +2794,7 @@ def extract_cibc_credit_card_transactions(pdf_bytes):
     return frame, {
         "statement_type": "credit_card",
         "bank": "CIBC",
+        "currency": statement_currency("\n".join([text, *transaction_pages])),
         "summary": {
             "previous_balance": previous, "payments_credits": total_credits,
             "purchases_charges": total_charges, "interest": 0.0, "fees": 0.0,
@@ -2781,7 +2806,8 @@ def extract_cibc_credit_card_transactions(pdf_bytes):
 
 def extract_cibc_chequing_transactions(pdf_bytes):
     doc=fitz.open(stream=pdf_bytes,filetype='pdf')
-    first=doc[0].get_text('text')
+    page_texts = [page.get_text("text") for page in doc]
+    first = page_texts[0]
     if 'CIBC Account Statement' not in first or 'Transaction details' not in first:
         raise ValueError('Not a supported CIBC bank account statement.')
     m=re.search(r'For\s+([A-Za-z]+)\s+\d+\s+to\s+([A-Za-z]+)\s+\d+,\s+(20\d{2})',first)
@@ -2797,8 +2823,8 @@ def extract_cibc_chequing_transactions(pdf_bytes):
     transactions=[];running_balances=[];previous=opening;date=None
     money_re=re.compile(r'^-?\$?[\d,]+\.\d{2}$')
     date_re=re.compile(r'^[A-Z][a-z]{2}\s+\d{1,2}$')
-    for page in doc:
-        lines=[x.strip() for x in page.get_text('text').splitlines()]
+    for page_text in page_texts:
+        lines=[x.strip() for x in page_text.splitlines()]
         start=next((i for i,x in enumerate(lines) if x.startswith('Transaction details')),None)
         if start is None:continue
         end=next((i for i in range(start+1,len(lines)) if lines[i].startswith(('Important:','(continued on next page)'))),len(lines))
@@ -2839,6 +2865,7 @@ def extract_cibc_chequing_transactions(pdf_bytes):
     return df,{'statement_type':'chequing','bank':'CIBC',
                'control':{'debit_total':debit_total,'credit_total':credit_total},
                'account_id':acct,'opening_balance':opening,'ending_balance':closing,
+               'currency':statement_currency("\n".join(page_texts)),
                'running_balances':running_balances,'qbo_verified':True}
 
 
@@ -3024,7 +3051,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     raise ValueError(f"Local OCR found no readable text on page {page.number + 1}.")
             for line in lines:
                 line = line.strip()
-                currency = re.fullmatch(r"(?:Currency|Devise)\s*:?\s*([A-Z]{3})", line, re.IGNORECASE)
+                currency = re.fullmatch(STATEMENT_CURRENCY_PATTERN, line, re.IGNORECASE)
                 if currency:
                     currencies.add(currency.group(1).upper())
                     continue
@@ -3365,6 +3392,8 @@ if "transactions" in st.session_state:
     st.header(
         "Transaction Review"
     )
+    if statement_info.get("currency"):
+        st.caption(f"Statement currency: {statement_info['currency']}. Import CSV into an account in the same currency.")
 
     if df.empty:
 
