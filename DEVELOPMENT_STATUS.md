@@ -35,6 +35,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Added synthetic coverage for the Simplii no-fee chequing statement-period header with full English month names and a spaced dash. The actual Simplii transaction layout and end-to-end conversion remain unverified.
 
+- The portable Windows build includes an updater that uses GitHub CLI to fetch the latest passing development package. It validates the build marker, keeps the previous application files, and attempts automatic recovery if replacement fails. It preserves existing shortcuts and other files in the portable folder.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. QuickBooks Desktop import verification remains pending for all rows.
@@ -96,7 +98,7 @@ Test result on Linux with Python 3.12 was **71 passing tests** with local Tesser
 3. Expand foreign-currency fixtures and validate QBO currency per institution. Current eligible legacy QBO templates target CAD. Experimental CSV preserves printed amounts without FX conversion and currency can remain undetected.
 4. Build dedicated modules for cards, lines of credit, mortgages, loans, and investments. Define how to preserve principal, interest, fees, dividends, investment transactions, and transfers before adding export mappings. Add institution and account-type catalog entries as evidence becomes available.
 5. Validate stable transaction IDs using overlapping statements, repeat imports, true duplicate rows, and separate accounts. Existing QBO FITIDs require regression coverage across layouts. CSV has no import identifier and does not provide cross-import deduplication.
-6. Verify the repaired packaged shortcut and the source-installed desktop app on Windows, including optional OCR. Implement a one-click update flow with rollback.
+6. Verify the repaired packaged shortcut and the source-installed desktop app on Windows, including optional OCR. Verify the portable updater interactively with GitHub CLI on a user Windows installation.
 
 User involvement will be needed for redacted statement and genuine Web Connect samples, QuickBooks Desktop import testing, and local Windows validation. Synthetic fixtures and parser work can continue independently.
 

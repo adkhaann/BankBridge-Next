@@ -18,6 +18,16 @@
 
 This is an unsigned development build. GitHub checks that the packaged app starts its local server. The packaged Windows app has also converted the synthetic TD fixture in an interactive check. Shortcut and QuickBooks import testing still need an interactive Windows session.
 
+### Update the portable Windows build
+
+The portable package includes `Update-BankBridgeNext.cmd` and `Update-BankBridgeNext.ps1`. Keep both beside `BankBridgeNext.exe`. If you already have a portable build, you can copy just those two updater files into its folder.
+
+1. Install [GitHub CLI](https://cli.github.com/) and run `gh auth login` once. Choose GitHub.com and follow the sign-in prompts.
+2. Close BankBridgeNext and double-click `Update-BankBridgeNext.cmd`. The updater downloads the latest passing Windows build from the development branch and replaces only the application files. Your desktop shortcut keeps its existing target.
+3. Open BankBridgeNext using the same shortcut. If you need to undo a successful update, close the app and restore `BankBridgeNext.exe`, `_internal`, and `BankBridgeNext.build` from the backup folder reported by the updater. Move the current copies aside before restoring.
+
+The updater is for the extracted portable app. A source checkout continues to update through Git.
+
 ### Verify a conversion
 
 1. Select **TD Canada Trust** and **Business Chequing**.

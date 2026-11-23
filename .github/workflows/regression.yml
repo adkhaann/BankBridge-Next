@@ -53,6 +53,14 @@ jobs:
         env:
           PYTHONPATH: .
         run: python tests/windows_package_smoke.py
+      - name: Test Windows updater replacement and rollback
+        shell: powershell
+        run: .\tests\test_windows_updater.ps1
+      - name: Bundle Windows updater and build marker
+        shell: powershell
+        run: |
+          Copy-Item windows/Update-BankBridgeNext.cmd,windows/Update-BankBridgeNext.ps1 dist/BankBridgeNext/
+          Set-Content -Path dist/BankBridgeNext/BankBridgeNext.build -Value $env:GITHUB_SHA -Encoding ASCII
       - name: Add synthetic statements for manual testing
         if: github.event_name == 'push'
         env:
