@@ -11,9 +11,8 @@
 - 2_Build_EXE.bat     build dist\BankBridgeNext\BankBridgeNext.exe
 
 ## Adding a new bank later
-1. Add the parser to app.py and the combination to SUPPORTED_COMBINATIONS (as before).
-2. In bankbridge_ui.py add one line to EXTRACTORS, and (if it has its own QBO
-   generator) a branch in make_qbo() in app.py.
+1. Add the parser and its institution/account combination to DEDICATED_EXTRACTORS in app.py.
+2. If it has its own QBO generator, add a branch to make_qbo() in app.py.
 3. Re-run 2_Build_EXE.bat if you use the .exe.
 
 ## Problems

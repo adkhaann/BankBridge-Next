@@ -57,7 +57,8 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 | Personal Chequing, Business Chequing, Joint Chequing | Dedicated entries above plus experimental CSV |
 | Personal Savings, Business Savings, Joint Savings, High-Interest Savings, Cash Management Account | Dedicated entries above plus experimental CSV |
 | Credit Card | Dedicated entries above |
-| Personal Credit Card, Business Credit Card, Corporate Credit Card, Secured Credit Card, Prepaid Credit Card | Catalog only |
+| Personal Credit Card, Business Credit Card, Corporate Credit Card, Secured Credit Card | Routes to the existing dedicated TD, RBC, BMO, and CIBC parsers. Product-specific layouts require separate fixture evidence. |
+| Prepaid Credit Card | Catalog only |
 | Line of Credit, Personal Line of Credit, Business Line of Credit, Home Equity Line of Credit (HELOC), Student Line of Credit | Catalog only |
 | Personal Loan, Business Loan, Vehicle Loan, Mortgage, Equipment Financing | Catalog only |
 | Non-Registered Investment Account, TFSA, RRSP, RRIF, RESP, FHSA, RDSP, LIRA, LIF, Corporate Investment Account | Catalog only |
@@ -65,7 +66,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **45 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
+Test result on Linux with Python 3.12 was **47 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
@@ -85,7 +86,7 @@ User involvement will be needed for redacted statement and genuine Web Connect s
 
 ## GitHub commits
 
-Declared numeric date formats are in `7d81fb5`. French deposit extraction is in `733e270`. CIBC running-balance validation after edits is in `eb43087`. Shared credit-card reconciliation is in `e6fbd38`. TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
+The Windows shortcut configuration fix is in `7d7d2eb`. Declared numeric date formats are in `7d81fb5`. French deposit extraction is in `733e270`. CIBC running-balance validation after edits is in `eb43087`. Shared credit-card reconciliation is in `e6fbd38`. TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
 
 | Commit | Change |
 | --- | --- |

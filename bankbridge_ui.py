@@ -5,9 +5,8 @@ All statement parsing and QBO/CSV generation lives in engine.py, which is
 built automatically from your app.py. This file only draws the screen.
 
 WHEN YOU ADD A NEW BANK TO app.py:
-  1. add the combination to SUPPORTED_COMBINATIONS in app.py (as before)
-  2. add one line to EXTRACTORS below naming its extract_... function
-  3. if it has its own QBO generator, add it in make_qbo() in app.py
+  1. add the combination and extractor to DEDICATED_EXTRACTORS in app.py
+  2. if it has its own QBO generator, add it in make_qbo() in app.py
 """
 import html
 import os
@@ -23,27 +22,10 @@ APP_VERSION = "1.0"
 # ---------------------------------------------------------------------------
 # Which extract_... function handles each (bank, account type)
 # ---------------------------------------------------------------------------
-_CIBC_DEPOSIT = "extract_cibc_chequing_transactions"
-EXTRACTORS = {
-    ("TD Canada Trust", "Business Chequing"): "extract_td_chequing_transactions",
-    ("TD Canada Trust", "Credit Card"): "extract_td_credit_card_transactions",
-    ("RBC Royal Bank", "Business Chequing"): "extract_rbc_business_chequing_transactions",
-    ("RBC Royal Bank", "Credit Card"): "extract_rbc_mastercard_transactions",
-    ("BMO Bank of Montreal", "Business Chequing"): "extract_bmo_business_chequing_transactions",
-    ("BMO Bank of Montreal", "Credit Card"): "extract_bmo_credit_card_transactions",
-    ("Scotiabank", "Business Chequing"): "extract_scotiabank_business_chequing_transactions",
-    ("CIBC", "Credit Card"): "extract_cibc_credit_card_transactions",
-    ("CIBC", "Personal Chequing"): _CIBC_DEPOSIT,
-    ("CIBC", "Business Chequing"): _CIBC_DEPOSIT,
-    ("CIBC", "Personal Savings"): _CIBC_DEPOSIT,
-    ("CIBC", "Business Savings"): _CIBC_DEPOSIT,
-}
-
-
 def get_extractor(bank, account_type, *, use_ocr=False):
-    name = EXTRACTORS.get((bank, account_type))
-    if name:
-        return getattr(eng, name, None)
+    dedicated = eng.get_dedicated_extractor(bank, account_type)
+    if dedicated:
+        return dedicated
     if account_type in eng.UNIVERSAL_DEPOSIT_TYPES:
         return lambda data: eng.extract_universal_transactions(data, bank, account_type, use_ocr=use_ocr)
     return None
@@ -265,8 +247,8 @@ html_block(
 
 ss = st.session_state
 has_results = "bb_df" in ss
-banks = list(getattr(eng, "CANADIAN_BANKS", sorted({b for b, _ in EXTRACTORS})))
-types = list(getattr(eng, "ACCOUNT_TYPES", sorted({t for _, t in EXTRACTORS})))
+banks = list(eng.CANADIAN_BANKS)
+types = list(eng.ACCOUNT_TYPES)
 
 left, right = st.columns(2, gap="medium")
 
@@ -280,7 +262,7 @@ with left:
             index=types.index("Business Chequing") if "Business Chequing" in types else 0,
             key="bb_type",
         )
-        universal = account_type in eng.UNIVERSAL_DEPOSIT_TYPES and (bank, account_type) not in EXTRACTORS
+        universal = account_type in eng.UNIVERSAL_DEPOSIT_TYPES and eng.get_dedicated_extractor(bank, account_type) is None
         use_ocr = st.checkbox("Use local OCR for scanned pages", value=False) if universal else False
         extractor = get_extractor(bank, account_type, use_ocr=use_ocr)
         if universal:

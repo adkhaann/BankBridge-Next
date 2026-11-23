@@ -2845,7 +2845,7 @@ def extract_cibc_chequing_transactions(pdf_bytes):
 def generate_cibc_qbo(df, info, account_type):
     # Institution, account types and identifiers verified against genuine CIBC QBO exports.
     import hashlib
-    is_card=(account_type=='Credit Card')
+    is_card = account_type in CREDIT_CARD_SELECTIONS
     if is_card:
         acct = info.get("account_id")
         if not isinstance(acct, str) or not re.fullmatch(r"[0-9]{13,19}", acct):
@@ -3256,20 +3256,33 @@ ACCOUNT_TYPES = [
     "Other Account Type"
 ]
 
-SUPPORTED_COMBINATIONS = {
-    ("TD Canada Trust", "Business Chequing"),
-    ("TD Canada Trust", "Credit Card"),
-    ("RBC Royal Bank", "Business Chequing"),
-    ("RBC Royal Bank", "Credit Card"),
-    ("BMO Bank of Montreal", "Business Chequing"),
-    ("BMO Bank of Montreal", "Credit Card"),
-    ("Scotiabank", "Business Chequing"),
-    ("CIBC", "Personal Chequing"),
-    ("CIBC", "Business Chequing"),
-    ("CIBC", "Credit Card"),
-    ("CIBC", "Personal Savings"),
-    ("CIBC", "Business Savings")
+CREDIT_CARD_SELECTIONS = (
+    "Credit Card", "Personal Credit Card", "Business Credit Card",
+    "Corporate Credit Card", "Secured Credit Card",
+)
+
+DEDICATED_EXTRACTORS = {
+    ("TD Canada Trust", "Business Chequing"): extract_td_chequing_transactions,
+    ("TD Canada Trust", "Credit Card"): extract_td_credit_card_transactions,
+    ("RBC Royal Bank", "Business Chequing"): extract_rbc_business_chequing_transactions,
+    ("RBC Royal Bank", "Credit Card"): extract_rbc_mastercard_transactions,
+    ("BMO Bank of Montreal", "Business Chequing"): extract_bmo_business_chequing_transactions,
+    ("BMO Bank of Montreal", "Credit Card"): extract_bmo_credit_card_transactions,
+    ("Scotiabank", "Business Chequing"): extract_scotiabank_business_chequing_transactions,
+    ("CIBC", "Credit Card"): extract_cibc_credit_card_transactions,
+    ("CIBC", "Personal Chequing"): extract_cibc_chequing_transactions,
+    ("CIBC", "Business Chequing"): extract_cibc_chequing_transactions,
+    ("CIBC", "Personal Savings"): extract_cibc_chequing_transactions,
+    ("CIBC", "Business Savings"): extract_cibc_chequing_transactions,
 }
+
+SUPPORTED_COMBINATIONS = set(DEDICATED_EXTRACTORS)
+
+
+def get_dedicated_extractor(bank, account_type):
+    if account_type in CREDIT_CARD_SELECTIONS:
+        account_type = "Credit Card"
+    return DEDICATED_EXTRACTORS.get((bank, account_type))
 
 
 col1, col2 = st.columns(2)
@@ -3290,18 +3303,10 @@ with col2:
     )
 
 
-is_supported = (
-    bank,
-    account_type
-) in SUPPORTED_COMBINATIONS
+extractor = get_dedicated_extractor(bank, account_type)
 
-
-if is_supported:
-
-    st.success(
-        f"Supported: {bank} - {account_type}"
-    )
-
+if extractor:
+    st.info(f"Dedicated parser available for compatible {bank} statement layouts.")
 else:
 
     st.info(
@@ -3326,7 +3331,7 @@ if uploaded_file is not None:
     if st.button(
         "Process Statement",
         type="primary",
-        disabled=not is_supported
+        disabled=extractor is None
     ):
 
         pdf_bytes = (
@@ -3335,102 +3340,7 @@ if uploaded_file is not None:
 
         try:
 
-            if bank == "CIBC" and account_type == "Credit Card":
-                df, statement_info = extract_cibc_credit_card_transactions(pdf_bytes)
-
-            elif bank == "CIBC" and account_type in ("Personal Chequing", "Business Chequing", "Personal Savings", "Business Savings"):
-                df, statement_info = extract_cibc_chequing_transactions(pdf_bytes)
-
-            elif (
-                bank == "TD Canada Trust"
-                and
-                account_type == "Credit Card"
-            ):
-
-                df, statement_info = (
-                    extract_td_credit_card_transactions(
-                        pdf_bytes
-                    )
-                )
-
-            elif (
-                bank == "TD Canada Trust"
-                and
-                account_type == "Business Chequing"
-            ):
-
-                df, statement_info = (
-                    extract_td_chequing_transactions(
-                        pdf_bytes
-                    )
-                )
-
-            elif (
-                bank == "Scotiabank"
-                and
-                account_type == "Business Chequing"
-            ):
-
-                df, statement_info = (
-                    extract_scotiabank_business_chequing_transactions(
-                        pdf_bytes
-                    )
-                )
-
-            elif (
-                bank == "BMO Bank of Montreal"
-                and
-                account_type == "Credit Card"
-            ):
-
-                df, statement_info = (
-                    extract_bmo_credit_card_transactions(
-                        pdf_bytes
-                    )
-                )
-
-            elif (
-                bank == "BMO Bank of Montreal"
-                and
-                account_type == "Business Chequing"
-            ):
-
-                df, statement_info = (
-                    extract_bmo_business_chequing_transactions(
-                        pdf_bytes
-                    )
-                )
-
-            elif (
-                bank == "RBC Royal Bank"
-                and
-                account_type == "Credit Card"
-            ):
-
-                df, statement_info = (
-                    extract_rbc_mastercard_transactions(
-                        pdf_bytes
-                    )
-                )
-
-            elif (
-                bank == "RBC Royal Bank"
-                and
-                account_type == "Business Chequing"
-            ):
-
-                df, statement_info = (
-                    extract_rbc_business_chequing_transactions(
-                        pdf_bytes
-                    )
-                )
-
-            else:
-
-                st.error(
-                    "This bank/account combination is not activated yet."
-                )
-                st.stop()
+            df, statement_info = extractor(pdf_bytes)
 
             st.session_state[
                 "transactions"
