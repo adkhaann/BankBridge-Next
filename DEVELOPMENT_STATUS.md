@@ -17,7 +17,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 | Institution | Account types routed to a dedicated parser | Fixture evidence in this branch | QuickBooks Desktop eligibility |
 | --- | --- | --- | --- |
-| TD Canada Trust | Business Chequing | Parser availability | Pending a confirmed account mapping and printed ledger balance |
+| TD Canada Trust | Business Chequing | Synthetic multi-page PDF, identical debits, printed totals and counts, and CSV generation | Pending a confirmed account mapping and printed ledger balance |
 | TD Canada Trust | Credit Card | Parser availability | Full printed card ID and closing balance |
 | RBC Royal Bank | Business Chequing | Synthetic PDF extraction, printed control extraction, CSV and QBO generation, and repeat-export FITIDs | Printed account, transit, and closing balance |
 | RBC Royal Bank | Credit Card | Parser availability | Full printed card ID and closing balance |
@@ -57,7 +57,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **18 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
+Test result on Linux with Python 3.12 was **19 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.

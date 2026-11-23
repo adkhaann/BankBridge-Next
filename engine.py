@@ -457,12 +457,6 @@ def extract_td_chequing_transactions(
             errors="coerce"
         ).fillna(0)
 
-        df = (
-            df
-            .drop_duplicates()
-            .reset_index(drop=True)
-        )
-
     statement_info = {
         "statement_type": "chequing",
         "bank": "TD Canada Trust",
