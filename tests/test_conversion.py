@@ -134,3 +134,42 @@ class UniversalDepositTests(unittest.TestCase):
                 )
         self.assertEqual(frame["Description"].tolist(), ["Synthetic debit", "Synthetic credit"])
         self.assertTrue(engine.reconcile_universal_transactions(frame, info)[1])
+
+
+class QboAccountIdentityTests(unittest.TestCase):
+    def setUp(self):
+        self.frame = pd.DataFrame(
+            [("2026-01-05", "Synthetic debit", 10.0, 0.0)],
+            columns=["Date", "Description", "Debit", "Credit"],
+        )
+
+    def test_full_card_must_be_printed_and_unambiguous(self):
+        self.assertIsNone(engine.full_card_account_id("Account number 4321 XXXX XXXX 1234"))
+        self.assertIsNone(engine.full_card_account_id("Account number 4321000000001234\nCard number 4321000000002345"))
+        account_id = engine.full_card_account_id("Account number 4321 0000 0000 1234")
+        self.assertEqual(account_id, "4321000000001234")
+        info = {"bank": "CIBC", "statement_type": "credit_card", "account_id": account_id,
+                "summary": {"new_balance": 75.0}}
+        data, note = engine.make_qbo(self.frame, info, "Credit Card")
+        self.assertIsNone(note)
+        self.assertIn("<ACCTID>4321000000001234", data)
+        info["account_id"] = "1234"
+        data, note = engine.make_qbo(self.frame, info, "Credit Card")
+        self.assertIsNone(data)
+        self.assertIn("full card account number", note)
+
+    def test_rbc_deposit_uses_the_statement_identity_and_requires_closing_balance(self):
+        info = {"bank": "RBC Royal Bank", "statement_type": "chequing",
+                "account_id": "9876543", "branch_id": "12345", "ending_balance": 90.0}
+        data, note = engine.make_qbo(self.frame, info, "Business Chequing")
+        self.assertIsNone(note)
+        self.assertIn("<BRANCHID>12345\n<ACCTID>9876543", data)
+        info["ending_balance"] = None
+        self.assertIsNone(engine.make_qbo(self.frame, info, "Business Chequing")[0])
+
+    def test_unmapped_deposits_and_universal_stay_csv_only(self):
+        for bank in ("TD Canada Trust", "BMO Bank of Montreal", "Scotiabank"):
+            with self.subTest(bank=bank):
+                info = {"bank": bank, "statement_type": "chequing", "account_id": None}
+                self.assertIsNone(engine.make_qbo(self.frame, info, "Business Chequing")[0])
+        self.assertIsNone(engine.make_qbo(self.frame, {"universal": True}, "Personal Savings")[0])

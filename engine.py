@@ -194,7 +194,7 @@ def get_chequing_account_id(text):
     if match:
         return match.group(1)
 
-    return "0000000"
+    return None
 
 
 def extract_td_chequing_transactions(
@@ -491,8 +491,8 @@ def extract_rbc_business_chequing_transactions(pdf_bytes):
     debit_total = summary(r"Total\s+cheques\s*&\s*debits\s*\(\d+\)\s*-\s*([\d,]+\.\d{2})")
     closing = summary(r"Closing\s+balance\s+on\s+.*?=\s*\$([\d,]+\.\d{2})")
     acct = re.search(r"Account\s+number:\s*(\d{5})\s+([\d-]+)", full_text, re.I)
-    branch_id = acct.group(1) if acct else "00000"
-    account_id = re.sub(r"\D", "", acct.group(2)) if acct else "0000000"
+    branch_id = acct.group(1) if acct else None
+    account_id = acct.group(2).replace("-", "") if acct else None
 
     transactions, current_date, pending = [], None, []
 
@@ -566,11 +566,15 @@ def extract_rbc_business_chequing_transactions(pdf_bytes):
         "statement_type": "chequing", "bank": "RBC Royal Bank",
         "control": controls, "account_id": account_id,
         "branch_id": branch_id,
-        "ending_balance": clean_amount(closing) if closing else 0.0
+        "ending_balance": clean_amount(closing) if closing else None
     }
 
 
 def generate_rbc_business_chequing_qbo(df, account_id, branch_id, ending_balance):
+    if not isinstance(account_id, str) or not re.fullmatch(r"[0-9]+", account_id):
+        raise ValueError("The RBC statement must show the full account number for QBO export.")
+    if not isinstance(branch_id, str) or not re.fullmatch(r"[0-9]{5}", branch_id) or ending_balance is None:
+        raise ValueError("The RBC statement must show its transit and closing balance for QBO export.")
     working_df = df.copy()
     working_df["DateObject"] = pd.to_datetime(working_df["Date"])
     first_date, last_date = working_df["DateObject"].min(), working_df["DateObject"].max()
@@ -629,7 +633,8 @@ NEWFILEUID:NONE
 <CURDEF>CAD
 <BANKACCTFROM>
 <BANKID>026005092
-<ACCTID>10000001
+<BRANCHID>{branch_id}
+<ACCTID>{account_id}
 <ACCTTYPE>CHECKING
 </BANKACCTFROM>
 <BANKTRANLIST>
@@ -659,7 +664,7 @@ def get_rbc_mastercard_summary(full_text):
         "fees": 0.0,
         "new_balance": None,
         "statement_year": datetime.now().year,
-        "account_id": "10000003"
+        "account_id": full_card_account_id(full_text)
     }
 
     period_match = re.search(
@@ -1033,8 +1038,7 @@ def get_bmo_chequing_summary(full_text):
         "credit_total": None,
         "debit_count": None,
         "credit_count": None,
-        # Genuine BMO QuickBooks Web Connect file supplied for this account.
-        "account_id": "52733500128408471"
+        "account_id": None
     }
 
     period = re.search(
@@ -1173,8 +1177,7 @@ def get_bmo_credit_card_summary(full_text):
         "fees": 0.0,
         "new_balance": None,
         "statement_year": datetime.now().year,
-        # Genuine BMO Mastercard QBO supplied for this account.
-        "account_id": "5581620038833910"
+        "account_id": full_card_account_id(full_text)
     }
 
     patterns = {
@@ -1508,8 +1511,7 @@ def get_scotiabank_business_chequing_summary(full_text):
         "credit_count": None,
         "credit_total": None,
         "ending_balance": None,
-        # Genuine Scotiabank QuickBooks QBO supplied for this account.
-        "account_id": "307420174815"
+        "account_id": None
     }
 
     period_match = re.search(
@@ -1908,38 +1910,15 @@ def get_credit_card_year(text):
     return datetime.now().year
 
 
-def get_credit_card_account_id(
-    text
-):
-
-    # Prefer explicit masked account-number line.
-
-    patterns = [
-
-        r"Account\s+Number:\s*"
-        r"(?:\d{4}\s+)?"
-        r"(?:\d{2}XX\s+XXXX\s+)?"
-        r"(\d{4})",
-
-        r"Account\s+Number.*?"
-        r"(\d{4})\b",
-
-        r"ending\s+in\s+"
-        r"(\d{4})"
-    ]
-
-    for pattern in patterns:
-
-        match = re.search(
-            pattern,
-            text,
-            re.IGNORECASE
-        )
-
-        if match:
-            return match.group(1)
-
-    return "0000"
+def full_card_account_id(text):
+    """Read a full card ID only from an explicit account-number label."""
+    candidates = set()
+    for match in re.finditer(r"^\s*(?:account|card)\s+number\s*:?\s*([0-9][0-9 -]*)$",
+                             text, re.IGNORECASE | re.MULTILINE):
+        digits = re.sub(r"[ -]", "", match.group(1))
+        if 13 <= len(digits) <= 19:
+            candidates.add(digits)
+    return next(iter(candidates)) if len(candidates) == 1 else None
 
 
 def extract_td_credit_card_transactions(
@@ -1969,7 +1948,7 @@ def extract_td_credit_card_transactions(
     )
 
     account_id = (
-        get_credit_card_account_id(
+        full_card_account_id(
             full_text
         )
     )
@@ -2193,6 +2172,37 @@ def extract_td_credit_card_transactions(
     }
 
     return df, statement_info
+
+
+def make_qbo(df, info, account_type):
+    """Route QBO only when the statement provides the required account data."""
+    if info.get("universal"):
+        return None, "QBO requires a verified institution and account mapping."
+    bank = info.get("bank", "TD Canada Trust")
+    account_id = info.get("account_id")
+    try:
+        if bank == "CIBC":
+            return generate_cibc_qbo(df, info, account_type), None
+        if info["statement_type"] == "chequing":
+            if bank == "RBC Royal Bank":
+                return generate_rbc_business_chequing_qbo(
+                    df, account_id, info.get("branch_id"), info.get("ending_balance")
+                ), None
+            return None, "QBO requires a confirmed Web Connect account mapping and printed ledger balance."
+        if not isinstance(account_id, str) or not re.fullmatch(r"[0-9]{13,19}", account_id):
+            return None, "QBO requires a full card account number printed on the statement."
+        new_balance = info["summary"].get("new_balance")
+        if new_balance is None:
+            return None, "QBO requires a printed closing balance."
+        if bank == "BMO Bank of Montreal":
+            return generate_bmo_credit_card_qbo(df, account_id, new_balance), None
+        if bank == "RBC Royal Bank":
+            return generate_rbc_mastercard_qbo(df, account_id, new_balance), None
+        if bank == "TD Canada Trust":
+            return generate_td_credit_card_qbo(df, account_id, new_balance), None
+        return None, "QBO requires a compatible institution and account type."
+    except ValueError as error:
+        return None, str(error)
 
 
 def generate_quickbooks_csv(
@@ -2585,7 +2595,8 @@ def extract_cibc_credit_card_transactions(pdf_bytes):
         raise ValueError('Not a supported CIBC Visa statement.')
     date_match = re.search(r'Statement Date\s+([A-Za-z]+)\s+(\d{1,2}),\s+(20\d{2})', text)
     card_match = re.search(r'Account number\s+(\d{4})\s+XXXX\s+XXXX\s+(\d{4})', text)
-    if not date_match or not card_match:
+    account_id = full_card_account_id(text)
+    if not date_match or not (card_match or account_id):
         raise ValueError('CIBC statement date or card number missing.')
     year = int(date_match.group(3)); month = datetime.strptime(date_match.group(1), '%B').month
     def summary_amount(label):
@@ -2627,7 +2638,7 @@ def extract_cibc_credit_card_transactions(pdf_bytes):
     if abs(df.Debit.sum()-total_charges)>0.011 or abs(df.Credit.sum()-total_credits)>0.011:
         raise ValueError(f'CIBC CC transaction totals mismatch: debits {df.Debit.sum():.2f} vs {total_charges:.2f}; credits {df.Credit.sum():.2f} vs {total_credits:.2f}.')
     return df,{'statement_type':'credit_card','bank':'CIBC','summary':summary,
-               'account_id':None,'cibc_card_suffix':card_match.group(2), 'qbo_verified':True}
+               'account_id':account_id}
 
 
 def extract_cibc_chequing_transactions(pdf_bytes):
@@ -2697,8 +2708,9 @@ def generate_cibc_qbo(df, info, account_type):
     import hashlib
     is_card=(account_type=='Credit Card')
     if is_card:
-        acct='4500033747910717' if info.get('cibc_card_suffix')=='0717' else None
-        if not acct:raise ValueError('This CIBC card has no verified QBO account identifier. CSV only.')
+        acct = info.get("account_id")
+        if not isinstance(acct, str) or not re.fullmatch(r"[0-9]{13,19}", acct):
+            raise ValueError("The CIBC statement must show the full card account number for QBO export.")
         acct_tag=f'<CCACCTFROM><ACCTID>{acct}<ACCTTYPE>CREDITLINE</CCACCTFROM>'
         outer='CREDITCARDMSGSRSV1';response='CCSTMTTRNRS';statement='CCSTMTRS'
         ending=-(info['summary']['new_balance'])

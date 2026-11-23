@@ -7,7 +7,7 @@ built automatically from your app.py. This file only draws the screen.
 WHEN YOU ADD A NEW BANK TO app.py:
   1. add the combination to SUPPORTED_COMBINATIONS in app.py (as before)
   2. add one line to EXTRACTORS below naming its extract_... function
-  3. if it has its own QBO generator, add it in make_qbo() below
+  3. if it has its own QBO generator, add it in make_qbo() in app.py
 """
 import html
 import os
@@ -47,38 +47,6 @@ def get_extractor(bank, account_type, *, use_ocr=False):
     if account_type in eng.UNIVERSAL_DEPOSIT_TYPES:
         return lambda data: eng.extract_universal_transactions(data, bank, account_type, use_ocr=use_ocr)
     return None
-
-
-def make_qbo(df, info, account_type):
-    """Same routing as the original app. Returns (qbo_text, note)."""
-    bank = info.get("bank")
-    if info.get("universal"):
-        return None, "CSV available after reconciliation. QBO requires a verified institution and account mapping."
-    if bank == "CIBC":
-        try:
-            return eng.generate_cibc_qbo(df, info, account_type), None
-        except ValueError as e:
-            return None, str(e)
-
-    if info["statement_type"] == "chequing":
-        if bank == "RBC Royal Bank":
-            return eng.generate_rbc_business_chequing_qbo(
-                df, info["account_id"], info.get("branch_id", "00000"),
-                info.get("ending_balance")), None
-        if bank == "BMO Bank of Montreal":
-            return eng.generate_bmo_chequing_qbo(
-                df, info["account_id"], info.get("ending_balance")), None
-        if bank == "Scotiabank":
-            return eng.generate_scotiabank_chequing_qbo(
-                df, info["account_id"], info.get("ending_balance")), None
-        return eng.generate_td_chequing_qbo(df, info["account_id"]), None
-
-    new_balance = info["summary"].get("new_balance")
-    if bank == "BMO Bank of Montreal":
-        return eng.generate_bmo_credit_card_qbo(df, info["account_id"], new_balance), None
-    if bank == "RBC Royal Bank":
-        return eng.generate_rbc_mastercard_qbo(df, info["account_id"], new_balance), None
-    return eng.generate_td_credit_card_qbo(df, info["account_id"], new_balance), None
 
 
 # ---------------------------------------------------------------------------
@@ -464,7 +432,7 @@ else:
                 stem = file_stem(edited, p_bank, p_type)
                 csv_data = eng.generate_quickbooks_csv(edited)
                 try:
-                    qbo_data, qbo_note = make_qbo(edited, info, p_type)
+                    qbo_data, qbo_note = eng.make_qbo(edited, info, p_type)
                 except Exception as e:
                     qbo_data, qbo_note = None, f"QBO file could not be created: {e}"
 
