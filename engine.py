@@ -1919,11 +1919,11 @@ def get_credit_card_summary(
     return summary
 
 
-def get_credit_card_year(text):
+def get_td_card_statement_year_month(text):
 
     match = re.search(
         r"STATEMENT DATE:\s*"
-        r"(?:January|February|March|April|May|June|July|"
+        r"(January|February|March|April|May|June|July|"
         r"August|September|October|November|December)"
         r"\s+\d{1,2},\s*(20\d{2})",
         text,
@@ -1931,7 +1931,7 @@ def get_credit_card_year(text):
     )
 
     if match:
-        return int(match.group(1))
+        return int(match.group(2)), datetime.strptime(match.group(1), "%B").month
 
     match = re.search(
         r"\b(20\d{2})\b",
@@ -1939,9 +1939,9 @@ def get_credit_card_year(text):
     )
 
     if match:
-        return int(match.group(1))
+        return int(match.group(1)), 12
 
-    return datetime.now().year
+    return datetime.now().year, 12
 
 
 def full_card_account_id(text):
@@ -1969,11 +1969,7 @@ def extract_td_credit_card_transactions(
     for page in doc:
         full_text += page.get_text("text") + "\n"
 
-    statement_year = (
-        get_credit_card_year(
-            full_text
-        )
-    )
+    statement_year, statement_month = get_td_card_statement_year_month(full_text)
 
     summary = (
         get_credit_card_summary(
@@ -2148,25 +2144,7 @@ def extract_td_credit_card_transactions(
 
                 debit = numeric_amount
 
-            try:
-
-                transaction_date = (
-                    datetime.strptime(
-                        f"{month_text} "
-                        f"{day} "
-                        f"{statement_year}",
-                        "%b %d %Y"
-                    )
-                    .strftime(
-                        "%Y-%m-%d"
-                    )
-                )
-
-            except:
-
-                transaction_date = (
-                    f"{month_text} {day}"
-                )
+            transaction_date = parse_statement_month_day(f"{month_text} {day}", statement_year, statement_month)
 
             transactions.append({
                 "Date": transaction_date,
@@ -2192,12 +2170,6 @@ def extract_td_credit_card_transactions(
             df["Credit"],
             errors="coerce"
         ).fillna(0)
-
-        df = (
-            df
-            .drop_duplicates()
-            .reset_index(drop=True)
-        )
 
     statement_info = {
         "statement_type": "credit_card",
@@ -2600,7 +2572,7 @@ def cibc_money(raw):
     return -value if 'CR' in raw.upper() else value
 
 
-def cibc_date(month_day, statement_year, statement_month):
+def parse_statement_month_day(month_day, statement_year, statement_month):
     date = datetime.strptime(f"{month_day} {statement_year}", "%b %d %Y")
     if date.month > statement_month:
         date = datetime.strptime(f"{month_day} {statement_year-1}", "%b %d %Y")
@@ -2687,7 +2659,7 @@ def extract_cibc_credit_card_transactions(pdf_bytes):
                     if amount and description:
                         is_credit = section == "payments" or (section == "charges" and amount < 0)
                         transactions.append({
-                            "Date": cibc_date(line, year, month),
+                            "Date": parse_statement_month_day(line, year, month),
                             "Description": description,
                             "Debit": 0.0 if is_credit else abs(amount),
                             "Credit": abs(amount) if is_credit else 0.0,
@@ -2742,7 +2714,7 @@ def extract_cibc_chequing_transactions(pdf_bytes):
         while i<len(seg):
             line=seg[i]
             if date_re.fullmatch(line):
-                date=cibc_date(line,year,month);i+=1;continue
+                date=parse_statement_month_day(line,year,month);i+=1;continue
             if line.lower() in ('opening balance','balance forward','closing balance'):
                 i+=1
                 if i<len(seg) and money_re.fullmatch(seg[i]):i+=1
