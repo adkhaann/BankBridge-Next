@@ -5,7 +5,8 @@ from test_conversion import statement_pdf
 
 
 class SignedDepositFixtureTests(unittest.TestCase):
-    def convert(self, second_amount="+25.00", second_header="Date             Description          Amount    Balance"):
+    def convert(self, second_amount="+25.00", second_header="Date             Description          Amount    Balance",
+                *, first_amount="-10.00"):
         pdf = statement_pdf(
             [
                 "Opening balance: 100.00",
@@ -14,7 +15,7 @@ class SignedDepositFixtureTests(unittest.TestCase):
                 "Total credits: 25.00",
                 "Transaction count: 2",
                 "Date             Description          Amount    Balance",
-                "2026-01-05       Synthetic debit      -10.00    90.00",
+                f"2026-01-05       Synthetic debit      {first_amount}    90.00",
             ],
             [
                 second_header,
@@ -34,3 +35,12 @@ class SignedDepositFixtureTests(unittest.TestCase):
             self.convert(second_amount="-25.00")
         with self.assertRaisesRegex(ValueError, "headings changed"):
             self.convert(second_header="Date             Description          Debit    Credit    Balance")
+
+    def test_dr_cr_amounts_reconcile_and_contradictions_are_rejected(self):
+        frame, info = self.convert(first_amount="10.00 DR", second_amount="25.00cr")
+        self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), [[10.0, 0.0], [0.0, 25.0]])
+        self.assertTrue(engine.reconcile_statement(frame, info)[1])
+        with self.assertRaisesRegex(ValueError, "separate sign"):
+            self.convert(second_amount="-25.00 CR")
+        with self.assertRaisesRegex(ValueError, "running balance"):
+            self.convert(second_amount="25.00 DR")

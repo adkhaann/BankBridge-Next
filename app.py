@@ -3279,6 +3279,18 @@ def render_statement_page(pdf_bytes, page_number):
         return page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False).tobytes("png")
 
 
+def signed_deposit_money_cents(value):
+    marker = re.fullmatch(r"(.+?)\s*(DR|CR)", value.strip(), re.IGNORECASE)
+    if not marker:
+        return universal_money_cents(value)
+    amount, direction = marker.groups()
+    amount = amount.strip()
+    if amount.startswith(("+", "-", "(")) or amount.endswith("-"):
+        raise ValueError("A deposit amount with DR or CR must not include a separate sign.")
+    cents = universal_money_cents(amount)
+    return -cents if direction.upper() == "DR" else cents
+
+
 def fixed_width_column_starts(line, columns):
     starts = []
     offset = 0
@@ -3412,6 +3424,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     is_card = account_type in CREDIT_CARD_SELECTIONS
     if not is_card and account_type not in UNIVERSAL_DEPOSIT_TYPES:
         raise ValueError("The experimental parser supports deposit and credit-card statements.")
+    signed_amount_parser = universal_money_cents if is_card else signed_deposit_money_cents
     labels = {
         "opening balance": "opening", "beginning balance": "opening",
         "closing balance": "closing", "ending balance": "closing",
@@ -3598,7 +3611,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 if has_posting_date:
                     posting_dates.append(columns[1])
                 if transaction_columns == 3:
-                    signed = universal_money_cents(columns[amount_index])
+                    signed = signed_amount_parser(columns[amount_index])
                     debit_cents, credit_cents = max(-signed, 0), max(signed, 0)
                 else:
                     amounts = columns[amount_index:amount_index + 2]
