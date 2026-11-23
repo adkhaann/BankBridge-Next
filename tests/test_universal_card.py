@@ -9,7 +9,7 @@ import engine
 from test_conversion import statement_pdf
 
 
-def card_statement(closing="110.00"):
+def card_statement(closing="110.00", *, payment="20.00"):
     return statement_pdf(
         [
             "Previous balance: 100.00",
@@ -22,7 +22,7 @@ def card_statement(closing="110.00"):
         ],
         [
             "Date          Description         Charges    Payments and credits    Balance",
-            "2026-01-08    Synthetic payment   -          20.00                   110.00",
+            f"2026-01-08    Synthetic payment   -          {payment:<24}110.00",
         ],
     )
 
@@ -36,6 +36,15 @@ class UniversalCardTests(unittest.TestCase):
         self.assertIn("Synthetic purchase,-30.0", csv_data)
         self.assertIn("Synthetic payment,20.0", csv_data)
         self.assertIsNone(engine.make_qbo(frame, info, "Credit Card")[0])
+
+    def test_explicit_credit_column_accepts_accounting_signs_and_cr(self):
+        for payment in ("-20.00", "(20.00)", "20.00 CR"):
+            with self.subTest(payment=payment):
+                frame, info = engine.extract_universal_transactions(
+                    card_statement(payment=payment), "Other", "Credit Card"
+                )
+                self.assertEqual(frame["Credit"].tolist(), [0.0, 20.0])
+                self.assertTrue(engine.reconcile_universal_transactions(frame, info)[1])
 
     def test_mismatch_blocks_export(self):
         frame, info = engine.extract_universal_transactions(card_statement("110.01"), "Other", "Credit Card")

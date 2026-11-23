@@ -3224,7 +3224,11 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 else:
                     debit, credit = columns[2:4][::-1] if credit_first else columns[2:4]
                     debit_cents = 0 if debit in ("-", "—") else universal_money_cents(debit)
+                    if is_card:
+                        credit = re.sub(r"\s+CR$", "", credit, flags=re.IGNORECASE)
                     credit_cents = 0 if credit in ("-", "—") else universal_money_cents(credit)
+                    if is_card:
+                        credit_cents = abs(credit_cents)
                 if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
                     raise ValueError(f"Expected one positive debit or credit on page {page.number + 1}.")
                 rows.append((date, description, debit_cents, credit_cents))
