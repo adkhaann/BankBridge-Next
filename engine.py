@@ -3012,8 +3012,14 @@ UNIVERSAL_DATE_FORMATS = {
 }
 
 
+ENGLISH_STATEMENT_MONTH = (
+    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+)
+
+
 def universal_statement_date(value, declared_format=None):
-    formats = ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%b %d, %Y", "%B %d, %Y")
+    formats = ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%d %B %Y", "%b %d, %Y", "%B %d, %Y")
     if declared_format:
         formats += (declared_format,)
     for fmt in formats:
@@ -3037,18 +3043,26 @@ def universal_statement_date(value, declared_format=None):
 
 def universal_transaction_date(value, declared_format, period):
     day_first = re.fullmatch(r"\d{1,2}\s+[^\W\d_]+", value)
-    month_first = re.fullmatch(r"[A-Za-z]{3}\s+\d{1,2}", value)
-    if not (day_first or month_first):
+    month_first = re.fullmatch(rf"{ENGLISH_STATEMENT_MONTH}\s+\d{{1,2}}", value, re.IGNORECASE)
+    numeric = re.fullmatch(r"\d{1,2}([/-])\d{1,2}", value)
+    if not (day_first or month_first or numeric):
         return universal_statement_date(value, declared_format)
+    if numeric:
+        separator = numeric.group(1)
+        if declared_format not in (f"%d{separator}%m{separator}%Y", f"%m{separator}%d{separator}%Y"):
+            raise ValueError(f"A matching printed day/month or month/day format is required for {value!r}.")
+    else:
+        separator = ", " if month_first else " "
     if period is None:
         raise ValueError(f"A printed statement period is required for a date without a year: {value!r}.")
 
     start, end = period
     candidates = []
     for year in range(int(start[:4]), int(end[:4]) + 1):
-        separator = ", " if month_first else " "
         try:
-            date = universal_statement_date(f"{value}{separator}{year:04d}")
+            date = universal_statement_date(
+                f"{value}{separator}{year:04d}", declared_format if numeric else None,
+            )
         except ValueError:
             continue
         if start <= date <= end:
@@ -3423,7 +3437,10 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     layout = current_layout
                     header_starts = fixed_width_column_starts(raw_line, columns) if "\t" not in raw_line else None
                     continue
-                if not re.match(r"(?:\d{1,4}[-/. ]|[A-Za-z]{3}\s+\d{1,2}(?:,|(?= {2,}|\t)))", line):
+                if not re.match(
+                    rf"(?:\d{{1,4}}[-/. ]|{ENGLISH_STATEMENT_MONTH}\s+\d{{1,2}}(?:,|(?= {{2,}}|\t)))",
+                    line, re.IGNORECASE,
+                ):
                     continue
                 if layout is None:
                     raise ValueError(f"Missing transaction headings on page {page.number + 1}.")
