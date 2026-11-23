@@ -2988,6 +2988,56 @@ def fill_blank_deposit_cell(line, columns, header_starts, has_running_balance):
     return columns
 
 
+def normalize_simplii_chequing_table(lines, page_number):
+    """Adapt the two-date Simplii table while retaining printed balance and amounts."""
+    heading = re.compile(
+        r"^\s*trans\.(?: date)? {2,}eff\.(?: date)? {2,}transaction {2,}"
+        r"(funds out) {2,}(funds in) {2,}(balance)\s*$", re.IGNORECASE
+    )
+    transaction = re.compile(r"^\s*([A-Za-z]{3} \d{1,2}) {2,}[A-Za-z]{3} \d{1,2} {2,}(.+)$")
+    header_ends = None
+    previous_balance = None
+    seen_transaction = False
+    normalized = []
+    for line in lines:
+        header = heading.fullmatch(line)
+        if header:
+            header_ends = [header.end(index) for index in (1, 2, 3)]
+            normalized.append("Date  Description  Debit  Credit  Balance")
+            continue
+        row = transaction.fullmatch(line.rstrip()) if header_ends else None
+        if not row:
+            normalized.append(line)
+            continue
+        date, details = row.groups()
+        fields = re.split(r" {2,}", details)
+        if not 2 <= len(fields) <= 4:
+            raise ValueError(f"Could not identify the Simplii transaction columns on page {page_number}.")
+        description, *amounts = fields
+        ends = [row.start(2) + start + len(field)
+                for start, field in zip(fixed_width_column_starts(details, fields), fields)]
+        columns = ["-", "-", "-"]
+        for amount, end in zip(amounts, ends[1:]):
+            distances = [abs(end - anchor) for anchor in header_ends]
+            column = distances.index(min(distances))
+            gap = min(abs(anchor - header_ends[column]) for i, anchor in enumerate(header_ends) if i != column)
+            if distances[column] * 2 >= gap or columns[column] != "-":
+                raise ValueError(f"Could not align a Simplii amount with its column on page {page_number}.")
+            columns[column] = amount
+        if columns[2] == "-":
+            raise ValueError(f"A Simplii row is missing its printed running balance on page {page_number}.")
+        if description.casefold() == "balance forward":
+            if columns[:2] != ["-", "-"] or previous_balance is not None or seen_transaction:
+                raise ValueError(f"Unexpected Simplii balance-forward row on page {page_number}.")
+            previous_balance = columns[2]
+            if page_number == 1:
+                normalized.append(f"Opening balance: {previous_balance}")
+            continue
+        seen_transaction = True
+        normalized.append("  ".join([date, description, *columns]))
+    return normalized, previous_balance
+
+
 def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=False):
     """Read explicit transaction tables and independently printed statement controls."""
     is_card = account_type in CREDIT_CARD_SELECTIONS
@@ -3014,6 +3064,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         ("date", "description", "débit", "crédit"),
         ("date", "description", "retraits", "dépôts"),
     }
+    if bank == "Simplii Financial" and not is_card:
+        labels.update({"total funds out": "debit", "total funds in": "credit"})
     if is_card:
         labels = {
             "previous balance": "opening", "opening balance": "opening",
@@ -3063,6 +3115,12 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 lines = page.get_text(sort=True, textpage=text_page).splitlines()
                 if not any(line.strip() for line in lines):
                     raise ValueError(f"Local OCR found no readable text on page {page.number + 1}.")
+            if bank == "Simplii Financial" and not is_card:
+                lines, forward = normalize_simplii_chequing_table(lines, page.number + 1)
+                if forward is not None and page.number > 0:
+                    preceding_balance = running_balances[-1] if running_balances else controls.get("opening")
+                    if universal_money_cents(forward) != preceding_balance:
+                        raise ValueError(f"Simplii balance forward differs from the preceding balance on page {page.number + 1}.")
             for raw_line in lines:
                 line = raw_line.strip()
                 currency = re.fullmatch(STATEMENT_CURRENCY_PATTERN, line, re.IGNORECASE)
