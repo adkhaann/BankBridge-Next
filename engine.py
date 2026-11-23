@@ -2910,6 +2910,29 @@ def detect_statement_selection(pdf_bytes):
     return {key: next(iter(values)) for key, values in matches.items() if len(values) == 1}
 
 
+def fixed_width_column_starts(line, columns):
+    starts = []
+    offset = 0
+    for column in columns:
+        start = line.index(column, offset)
+        starts.append(start)
+        offset = start + len(column)
+    return starts
+
+
+def fill_blank_deposit_cell(line, columns, header_starts, has_running_balance):
+    starts = fixed_width_column_starts(line, columns)
+    if starts[:2] != header_starts[:2]:
+        return columns
+    if has_running_balance and starts[-1] != header_starts[-1]:
+        return columns
+    if starts[2] == header_starts[2]:
+        return [*columns[:3], "-", *columns[3:]]
+    if starts[2] == header_starts[3]:
+        return [*columns[:2], "-", *columns[2:]]
+    return columns
+
+
 def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=False):
     """Read explicit deposit tables and independently printed statement controls."""
     if account_type not in UNIVERSAL_DEPOSIT_TYPES:
@@ -2948,6 +2971,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     date_format = None
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
         for page in document:
+            header_starts = None
             lines = page.get_text(sort=True).splitlines()
             if not any(line.strip() for line in lines):
                 if not use_ocr:
@@ -2959,8 +2983,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 lines = page.get_text(sort=True, textpage=text_page).splitlines()
                 if not any(line.strip() for line in lines):
                     raise ValueError(f"Local OCR found no readable text on page {page.number + 1}.")
-            for line in lines:
-                line = line.strip()
+            for raw_line in lines:
+                line = raw_line.strip()
                 currency = re.fullmatch(STATEMENT_CURRENCY_PATTERN, line, re.IGNORECASE)
                 if currency:
                     currencies.add(currency.group(1).upper())
@@ -3009,13 +3033,18 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     if layout is not None and current_layout != layout:
                         raise ValueError("Transaction headings changed between pages.")
                     layout = current_layout
+                    header_starts = fixed_width_column_starts(raw_line, columns) if "\t" not in raw_line else None
                     continue
                 if not re.match(r"(?:\d{1,4}[-/. ]|[A-Za-z]{3}\s+\d{1,2},)", line):
                     continue
                 if layout is None:
                     raise ValueError(f"Missing transaction headings on page {page.number + 1}.")
                 transaction_columns, has_running_balance = layout
-                if len(columns) != transaction_columns + has_running_balance:
+                expected_columns = transaction_columns + has_running_balance
+                if (transaction_columns == 4 and len(columns) == expected_columns - 1
+                        and header_starts is not None and "\t" not in raw_line):
+                    columns = fill_blank_deposit_cell(raw_line, columns, header_starts, has_running_balance)
+                if len(columns) != expected_columns:
                     raise ValueError(f"Unrecognized transaction columns on page {page.number + 1}.")
                 date, description = columns[:2]
                 if transaction_columns == 3:
