@@ -5,8 +5,8 @@ echo Starting BankBridge in diagnostic mode. Close the BankBridge window when do
 echo.
 ".venv\Scripts\python.exe" run_app.py
 echo.
-echo ---------- last lines of %LOCALAPPDATA%\BankBridge\bankbridge.log ----------
-powershell -NoProfile -Command "Get-Content -Tail 40 (Join-Path $env:LOCALAPPDATA 'BankBridge\bankbridge.log')"
+echo ---------- last lines of %LOCALAPPDATA%\BankBridgeNext\bankbridge.log ----------
+powershell -NoProfile -Command "Get-Content -Tail 40 (Join-Path $env:LOCALAPPDATA 'BankBridgeNext\bankbridge.log')"
 echo -----------------------------------------------------------------------------
 echo Take a screenshot of this window if you need help.
 pause

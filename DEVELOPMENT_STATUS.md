@@ -17,6 +17,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Added synthetic coverage for French deposit headings and controls, named-month dates, comma-decimal amounts, and printed-count failures. French OCR remains untested.
 
+- Aligned the Windows packaged shortcut and documentation with the PyInstaller output. The build script checks for the executable before updating the BankBridgeNext shortcut. The configuration is covered by a static test.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. QuickBooks Desktop import verification remains pending for all rows.
@@ -63,7 +65,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **44 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
+Test result on Linux with Python 3.12 was **45 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
@@ -77,13 +79,13 @@ Test result on Linux with Python 3.12 was **44 passing tests** with local Tesser
 3. Expand foreign-currency fixtures and validate QBO currency per institution. Current eligible legacy QBO templates target CAD. Experimental CSV preserves printed amounts without FX conversion and currency can remain undetected.
 4. Build dedicated modules for cards, lines of credit, mortgages, loans, and investments. Define how to preserve principal, interest, fees, dividends, investment transactions, and transfers before adding export mappings. Add institution and account-type catalog entries as evidence becomes available.
 5. Validate stable transaction IDs using overlapping statements, repeat imports, true duplicate rows, and separate accounts. Existing QBO FITIDs require regression coverage across layouts. CSV has no import identifier and does not provide cross-import deduplication.
-6. Fix and test the packaged Windows shortcut. The existing build script targets a different executable path from the PyInstaller spec. Verify the source-installed shortcut and packaged desktop app on Windows, including optional OCR, and implement a one-click update flow with rollback.
+6. Verify the repaired packaged shortcut and the source-installed desktop app on Windows, including optional OCR. Implement a one-click update flow with rollback.
 
 User involvement will be needed for redacted statement and genuine Web Connect samples, QuickBooks Desktop import testing, and local Windows validation. Synthetic fixtures and parser work can continue independently.
 
 ## GitHub commits
 
-French deposit extraction is in `733e270`. CIBC running-balance validation after edits is in `eb43087`. Shared credit-card reconciliation is in `e6fbd38`. TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
+Declared numeric date formats are in `7d81fb5`. French deposit extraction is in `733e270`. CIBC running-balance validation after edits is in `eb43087`. Shared credit-card reconciliation is in `e6fbd38`. TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
 
 | Commit | Change |
 | --- | --- |
