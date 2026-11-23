@@ -57,3 +57,22 @@ class SourcePageTests(unittest.TestCase):
             with self.subTest(page=page):
                 with self.assertRaisesRegex(ValueError, "unavailable"):
                     engine.render_statement_page(multi_page_statement(), page)
+
+    def test_failed_conversion_allows_preview_without_enabling_exports(self):
+        def unfamiliar_statement():
+            return test_conversion.statement_pdf(["Unfamiliar summary"], ["Unfamiliar transaction layout"])
+
+        uploaded = SimpleNamespace(name="unfamiliar.pdf", file_id="unfamiliar", getvalue=unfamiliar_statement)
+        app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
+        with patch("streamlit.file_uploader", return_value=uploaded), patch("streamlit.image") as preview:
+            ui = AppTest.from_file(str(app_path)).run()
+            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
+            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
+            next(button for button in ui.button if button.label == "Convert statement").click().run()
+            self.assertTrue(ui.error)
+            self.assertFalse(ui.get("download_button"))
+            ui.checkbox(key="bb_preview_failed").check().run()
+            ui.selectbox(key="bb_preview_page_failed").set_value(2).run()
+            self.assertIn("page 2", preview.call_args.kwargs["caption"])
+            self.assertFalse(ui.exception)
+            self.assertFalse(ui.get("download_button"))

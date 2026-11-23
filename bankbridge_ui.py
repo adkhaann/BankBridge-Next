@@ -199,6 +199,22 @@ def step(n, title, subtitle=None, done=False):
     )
 
 
+def show_statement_preview(uploaded, key, source_pages=None):
+    if not st.checkbox("Preview original PDF", key=f"bb_preview_{key}"):
+        return
+    pdf_bytes = uploaded.getvalue()
+    try:
+        pages = sorted(set(source_pages)) if source_pages else range(1, eng.statement_page_count(pdf_bytes) + 1)
+        if not pages:
+            st.warning("The uploaded PDF has no pages to display.")
+            return
+        page_number = st.selectbox("PDF page to preview", pages, key=f"bb_preview_page_{key}")
+        image = eng.render_statement_page(pdf_bytes, page_number)
+        st.image(image, caption=f"Original PDF · page {page_number}", width="stretch")
+    except (RuntimeError, ValueError):
+        st.warning("The uploaded PDF page could not be displayed.")
+
+
 def apply_detected_selection(pdf_bytes):
     try:
         detected = eng.detect_statement_selection(pdf_bytes)
@@ -308,6 +324,9 @@ has_results = "bb_df" in ss
 if ss.get("bb_error"):
     st.error(f"**We couldn't read this statement.** {ss['bb_error']}\n\n"
              "Check that the bank and account type match the PDF, then try again.")
+    if uploaded is not None:
+        show_statement_preview(uploaded, "failed")
+
 
 if not has_results:
     html_block(
@@ -359,17 +378,7 @@ else:
                 edited["Credit"] = pd.to_numeric(edited["Credit"], errors="coerce").fillna(0.0)
                 edited["Description"] = edited["Description"].fillna("").astype(str)
                 if info.get("source_pages") and uploaded is not None:
-                    if st.checkbox("Preview original PDF", key=f"bb_preview_{ss['bb_run']}"):
-                        page_number = st.selectbox(
-                            "PDF page to preview", sorted(set(info["source_pages"])),
-                            key=f"bb_preview_page_{ss['bb_run']}",
-                        )
-                        try:
-                            page_image = eng.render_statement_page(uploaded.getvalue(), page_number)
-                            st.image(page_image, caption=f"Original PDF · page {page_number}", width="stretch")
-                        except (RuntimeError, ValueError):
-                            st.warning("The selected PDF page could not be displayed.")
-
+                    show_statement_preview(uploaded, ss["bb_run"], info["source_pages"])
 
             rec = reconcile(edited, info)
 

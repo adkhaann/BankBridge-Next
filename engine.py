@@ -2947,6 +2947,11 @@ def detect_statement_selection(pdf_bytes):
     return {key: next(iter(values)) for key, values in matches.items() if len(values) == 1}
 
 
+def statement_page_count(pdf_bytes):
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
+        return len(document)
+
+
 def render_statement_page(pdf_bytes, page_number):
     """Render a bounded, in-memory preview of one 1-based PDF page."""
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
