@@ -1193,6 +1193,24 @@ def extract_bmo_business_chequing_transactions(pdf_bytes):
     }
 
 
+def reconcile_dedicated_deposit(frame, info):
+    """Compare extracted transactions with the statement's printed controls."""
+    if info.get("bank") == "BMO Bank of Montreal":
+        return reconcile_bmo_deposit(frame, info)
+    control = info.get("control", {})
+    rows = []
+    for column, key, label in (
+        ("Debit", "debit", "Debits"),
+        ("Credit", "credit", "Credits"),
+    ):
+        amounts = frame[column]
+        rows.extend([
+            (f"{label} (count)", control.get(f"{key}_count"), int((amounts > 0).sum()), "n"),
+            (f"{label} (total)", control.get(f"{key}_total"), round(float(amounts.sum()), 2), "$"),
+        ])
+    return rows, bool(not frame.empty and all(expected == actual for _, expected, actual, _ in rows))
+
+
 def reconcile_bmo_deposit(frame, info):
     control = info["control"]
     printed = {
@@ -3468,8 +3486,8 @@ if "transactions" in st.session_state:
         # CHEQUING RECONCILIATION
         # =================================================
 
-        if statement_info.get("bank") == "BMO Bank of Montreal" and statement_info["statement_type"] == "chequing":
-            checks, reconciled = reconcile_bmo_deposit(edited_df, statement_info)
+        if statement_info["statement_type"] == "chequing":
+            checks, reconciled = reconcile_dedicated_deposit(edited_df, statement_info)
             if checks:
                 st.table(pd.DataFrame(
                     [(label, expected, actual) for label, expected, actual, _ in checks],
@@ -3478,113 +3496,7 @@ if "transactions" in st.session_state:
             if reconciled:
                 st.success("Statement reconciles.")
             else:
-                st.error("Reconciliation requires matching printed debit and credit totals, opening and closing balances, and any printed item count.")
-        elif (
-            statement_info[
-                "statement_type"
-            ]
-            == "chequing"
-        ):
-
-            controls = (
-                statement_info[
-                    "control"
-                ]
-            )
-
-            st.divider()
-
-            if (
-                controls[
-                    "debit_total"
-                ]
-                is not None
-            ):
-
-                st.write(
-                    "Statement Debits: "
-                    f"{controls['debit_count']} "
-                    "transactions, "
-                    f"${controls['debit_total']:,.2f}"
-                )
-
-            if (
-                controls[
-                    "credit_total"
-                ]
-                is not None
-            ):
-
-                st.write(
-                    "Statement Credits: "
-                    f"{controls['credit_count']} "
-                    "transactions, "
-                    f"${controls['credit_total']:,.2f}"
-                )
-
-            if (
-                controls[
-                    "debit_total"
-                ]
-                is not None
-                and
-                controls[
-                    "credit_total"
-                ]
-                is not None
-            ):
-
-                reconciled = (
-
-                    debit_count
-                    ==
-                    controls[
-                        "debit_count"
-                    ]
-
-                    and
-
-                    credit_count
-                    ==
-                    controls[
-                        "credit_count"
-                    ]
-
-                    and
-
-                    abs(
-                        debit_total
-                        -
-                        controls[
-                            "debit_total"
-                        ]
-                    )
-                    < 0.01
-
-                    and
-
-                    abs(
-                        credit_total
-                        -
-                        controls[
-                            "credit_total"
-                        ]
-                    )
-                    < 0.01
-                )
-
-            if reconciled:
-
-                st.success(
-                    "✓ STATEMENT RECONCILES"
-                )
-
-            else:
-
-                st.error(
-                    "STATEMENT DOES NOT RECONCILE"
-                )
-
+                st.error("Transactions must match the printed statement controls before export.")
 
         # =================================================
         # CREDIT CARD RECONCILIATION

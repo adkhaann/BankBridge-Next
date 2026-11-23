@@ -1160,6 +1160,24 @@ def extract_bmo_business_chequing_transactions(pdf_bytes):
     }
 
 
+def reconcile_dedicated_deposit(frame, info):
+    """Compare extracted transactions with the statement's printed controls."""
+    if info.get("bank") == "BMO Bank of Montreal":
+        return reconcile_bmo_deposit(frame, info)
+    control = info.get("control", {})
+    rows = []
+    for column, key, label in (
+        ("Debit", "debit", "Debits"),
+        ("Credit", "credit", "Credits"),
+    ):
+        amounts = frame[column]
+        rows.extend([
+            (f"{label} (count)", control.get(f"{key}_count"), int((amounts > 0).sum()), "n"),
+            (f"{label} (total)", control.get(f"{key}_total"), round(float(amounts.sum()), 2), "$"),
+        ])
+    return rows, bool(not frame.empty and all(expected == actual for _, expected, actual, _ in rows))
+
+
 def reconcile_bmo_deposit(frame, info):
     control = info["control"]
     printed = {

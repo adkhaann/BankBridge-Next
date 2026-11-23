@@ -61,23 +61,8 @@ def reconcile(df, info):
 
     if info.get("universal"):
         rows, ok = eng.reconcile_universal_transactions(df, info)
-    elif info["statement_type"] == "chequing" and info.get("bank") == "BMO Bank of Montreal":
-        rows, ok = eng.reconcile_bmo_deposit(df, info)
     elif info["statement_type"] == "chequing":
-        c = info.get("control", {})
-        if c.get("debit_total") is not None:
-            rows.append(("Withdrawals / debits (count)", c.get("debit_count"), debit_count, "n"))
-            rows.append(("Withdrawals / debits (total)", c["debit_total"], debit_total, "$"))
-        if c.get("credit_total") is not None:
-            rows.append(("Deposits / credits (count)", c.get("credit_count"), credit_count, "n"))
-            rows.append(("Deposits / credits (total)", c["credit_total"], credit_total, "$"))
-        if c.get("debit_total") is not None and c.get("credit_total") is not None:
-            ok = (
-                debit_count == c.get("debit_count")
-                and credit_count == c.get("credit_count")
-                and abs(debit_total - c["debit_total"]) < 0.01
-                and abs(credit_total - c["credit_total"]) < 0.01
-            )
+        rows, ok = eng.reconcile_dedicated_deposit(df, info)
     else:
         s = info.get("summary", {})
         prev = s.get("previous_balance")

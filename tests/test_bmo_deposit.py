@@ -27,7 +27,7 @@ def bmo_statement(item_count=2, closing="115.00"):
 class BmoDepositFixtureTests(unittest.TestCase):
     def test_printed_summary_reconciles_and_exports_csv(self):
         frame, info = engine.extract_bmo_business_chequing_transactions(bmo_statement())
-        self.assertTrue(engine.reconcile_bmo_deposit(frame, info)[1])
+        self.assertTrue(engine.reconcile_dedicated_deposit(frame, info)[1])
         self.assertIsNone(info["control"]["debit_count"])
         self.assertIsNone(info["control"]["credit_count"])
         self.assertEqual(info["control"]["item_count"], 2)
@@ -42,10 +42,10 @@ class BmoDepositFixtureTests(unittest.TestCase):
         for changes in ({"item_count": 3}, {"closing": "115.01"}):
             with self.subTest(changes=changes):
                 frame, info = engine.extract_bmo_business_chequing_transactions(bmo_statement(**changes))
-                self.assertFalse(engine.reconcile_bmo_deposit(frame, info)[1])
+                self.assertFalse(engine.reconcile_dedicated_deposit(frame, info)[1])
 
     def test_edited_debit_cannot_be_hidden_by_a_matching_credit(self):
         frame, info = engine.extract_bmo_business_chequing_transactions(bmo_statement())
         frame.loc[0, "Credit"] = 25.0
         frame.loc[1, "Credit"] = 0.0
-        self.assertFalse(engine.reconcile_bmo_deposit(frame, info)[1])
+        self.assertFalse(engine.reconcile_dedicated_deposit(frame, info)[1])
