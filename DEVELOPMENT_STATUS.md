@@ -6,7 +6,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Restored a buildable `app.py` from the last compilable source after finding an unterminated parser and duplicate UI code at the development branch tip. Regenerated `engine.py`.
 - Established a regression baseline before conversion changes. The tests cover dedicated parser availability, a synthetic CIBC deposit statement with an independent running balance failure case, and the QuickBooks Online CSV schema.
-- Implemented experimental multi-page deposit extraction for explicit debit and credit tables. Downloads require printed opening and closing balances and independent debit and credit totals. Reconciliation also checks printed counts, running balances, and statement periods when present.
+- Implemented experimental multi-page deposit extraction for explicit debit and credit tables or a single signed amount column. Downloads require printed opening and closing balances and independent debit and credit totals. Reconciliation also checks printed counts, running balances, and statement periods when present.
 - Added opt-in Tesseract OCR for image-only pages in the experimental path. PDF text extraction, OCR, edits, reconciliation, and export run locally. Existing Windows installation and shortcut scripts remain in place.
 - Added detection of explicit bank and account-type labels, or an exact institution heading on the first text page. The experimental parser detects a printed three-letter Currency field, rejects conflicting codes, and shows the result during review. CSV has no currency column and must be imported into the matching account.
 - Removed embedded customer account numbers from the export path. RBC deposit exports use the statement account and transit. Full card account numbers must come from an unambiguous printed field. Masked or unmapped accounts retain the reconciled CSV path.
@@ -70,7 +70,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **50 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
+Test result on Linux with Python 3.12 was **52 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
@@ -90,7 +90,7 @@ User involvement will be needed for redacted statement and genuine Web Connect s
 
 ## GitHub commits
 
-Stale review and download cleanup is in `92feb1f`. Dedicated credit card product routing is in `88beecc`. The Windows shortcut configuration fix is in `7d7d2eb`. Declared numeric date formats are in `7d81fb5`. French deposit extraction is in `733e270`. CIBC running-balance validation after edits is in `eb43087`. Shared credit-card reconciliation is in `e6fbd38`. TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
+The foreign-currency QBO safeguard is in `a0656ca`. Stale review and download cleanup is in `92feb1f`. Dedicated credit card product routing is in `88beecc`. The Windows shortcut configuration fix is in `7d7d2eb`. Declared numeric date formats are in `7d81fb5`. French deposit extraction is in `733e270`. CIBC running-balance validation after edits is in `eb43087`. Shared credit-card reconciliation is in `e6fbd38`. TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
 
 | Commit | Change |
 | --- | --- |

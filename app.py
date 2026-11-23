@@ -2928,17 +2928,17 @@ UNIVERSAL_DEPOSIT_TYPES = (
 
 def universal_money_cents(value):
     """Parse a printed amount without binary rounding or currency assumptions."""
-    match = re.fullmatch(r"(-?)\$?(\d+|\d{1,3}(?:,\d{3})+)\.(\d{2})", value)
+    match = re.fullmatch(r"([+-]?)\$?(\d+|\d{1,3}(?:,\d{3})+)\.(\d{2})", value)
     grouping = ","
     if not match:
         grouping = " "
         value = value.replace("\u00a0", " ").replace("\u202f", " ")
-        match = re.fullmatch(r"(-?)(\d+|\d{1,3}(?: \d{3})+),(\d{2})(?: ?\$)?", value)
+        match = re.fullmatch(r"([+-]?)(\d+|\d{1,3}(?: \d{3})+),(\d{2})(?: ?\$)?", value)
     if not match:
         raise ValueError(f"Unrecognized amount: {value!r}.")
     sign, whole, fraction = match.groups()
     cents = int(whole.replace(grouping, "")) * 100 + int(fraction)
-    return -cents if sign else cents
+    return -cents if sign == "-" else cents
 
 
 UNIVERSAL_DATE_FORMATS = {
@@ -3005,7 +3005,7 @@ def detect_statement_selection(pdf_bytes):
 
 
 def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=False):
-    """Read explicit deposit columns and independently printed statement controls."""
+    """Read explicit deposit tables and independently printed statement controls."""
     if account_type not in UNIVERSAL_DEPOSIT_TYPES:
         raise ValueError("The experimental parser supports deposit statements only.")
     labels = {
@@ -3029,10 +3029,14 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         ("date", "description", "débit", "crédit"),
         ("date", "description", "retraits", "dépôts"),
     }
+    signed_headers = {
+        ("date", "description", "amount"),
+        ("date", "description", "montant"),
+    }
     controls = {}
     rows = []
     running_balances = []
-    has_running_balance = None
+    layout = None
     currencies = set()
     printed_periods = []
     date_format = None
@@ -3092,24 +3096,34 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     continue
                 columns = re.split(r"\t+| {2,}", line)
                 headings = tuple(column.strip().lower() for column in columns)
-                if headings[:4] in headers and headings[4:] in ((), ("balance",), ("solde",)):
-                    running = len(headings) == 5
-                    if has_running_balance is not None and running != has_running_balance:
+                running = headings[-1] in ("balance", "solde")
+                base_headings = headings[:-1] if running else headings
+                if base_headings in headers or base_headings in signed_headers:
+                    current_layout = (len(base_headings), running)
+                    if layout is not None and current_layout != layout:
                         raise ValueError("Transaction headings changed between pages.")
-                    has_running_balance = running
+                    layout = current_layout
                     continue
                 if not re.match(r"(?:\d{1,4}[-/. ]|[A-Za-z]{3}\s+\d{1,2},)", line):
                     continue
-                if has_running_balance is None or len(columns) != 4 + has_running_balance:
+                if layout is None:
+                    raise ValueError(f"Missing transaction headings on page {page.number + 1}.")
+                transaction_columns, has_running_balance = layout
+                if len(columns) != transaction_columns + has_running_balance:
                     raise ValueError(f"Unrecognized transaction columns on page {page.number + 1}.")
-                date, description, debit, credit = columns[:4]
-                debit_cents = 0 if debit in ("-", "—") else universal_money_cents(debit)
-                credit_cents = 0 if credit in ("-", "—") else universal_money_cents(credit)
+                date, description = columns[:2]
+                if transaction_columns == 3:
+                    signed = universal_money_cents(columns[2])
+                    debit_cents, credit_cents = max(-signed, 0), max(signed, 0)
+                else:
+                    debit, credit = columns[2:4]
+                    debit_cents = 0 if debit in ("-", "—") else universal_money_cents(debit)
+                    credit_cents = 0 if credit in ("-", "—") else universal_money_cents(credit)
                 if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
                     raise ValueError(f"Expected one positive debit or credit on page {page.number + 1}.")
                 rows.append((date, description, debit_cents, credit_cents))
                 if has_running_balance:
-                    running_balances.append(universal_money_cents(columns[4]))
+                    running_balances.append(universal_money_cents(columns[-1]))
     if not rows or not {"opening", "closing", "debit", "credit"} <= controls.keys():
         raise ValueError("Expected transaction rows and printed opening balance, closing balance, total debits and total credits.")
     if len(currencies) > 1:
