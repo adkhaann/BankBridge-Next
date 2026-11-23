@@ -1893,6 +1893,7 @@ def get_credit_card_summary(
             or 0.0
         )
 
+        summary["purchases_derived"] = True
         summary["purchases_charges"] = round(
 
             summary["new_balance"]
@@ -2956,6 +2957,44 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     }
 
 
+def valid_transaction_rows(frame, dates):
+    amounts = frame[["Debit", "Credit"]]
+    return (
+        not frame.empty
+        and dates.notna().all()
+        and frame["Description"].fillna("").str.strip().ne("").all()
+        and ((frame["Debit"] > 0) ^ (frame["Credit"] > 0)).all()
+        and (amounts >= 0).all().all()
+        and amounts.eq(amounts.round(2)).all().all()
+        and (amounts < float("inf")).all().all()
+    )
+
+
+def reconcile_credit_card(frame, info):
+    summary = info.get("summary", {})
+    previous = summary.get("previous_balance")
+    purchases = summary.get("purchases_charges")
+    payments = summary.get("payments_credits")
+    closing = summary.get("new_balance")
+    interest = summary.get("interest") or 0.0
+    fees = summary.get("fees") or 0.0
+    charges = None if purchases is None else round(purchases + interest + fees, 2)
+    debits = round(float(frame["Debit"].sum()), 2)
+    credits = round(float(frame["Credit"].sum()), 2)
+    calculated = None if previous is None else round(previous + debits - credits, 2)
+    charge_label = "Charges implied by printed balances" if summary.get("purchases_derived") else "Charges (purchases + interest + fees)"
+    rows = [
+        (charge_label, charges, debits, "$"),
+        ("Payments & credits", payments, credits, "$"),
+        ("Closing balance", closing, calculated, "$"),
+    ]
+    dates = pd.to_datetime(frame["Date"], format="%Y-%m-%d", errors="coerce")
+    ok = valid_transaction_rows(frame, dates) and all(
+        expected is not None and expected == actual for _, expected, actual, _ in rows
+    )
+    return rows, bool(ok)
+
+
 def reconcile_universal_transactions(frame, info):
     control = info["control"]
     debits = frame["Debit"]
@@ -2986,16 +3025,9 @@ def reconcile_universal_transactions(frame, info):
     if info.get("period"):
         start, end = (pd.Timestamp(date) for date in info["period"])
         rows.append(("Transactions within statement period", len(frame), int(dates.between(start, end).sum()), "n"))
-    amounts = frame[["Debit", "Credit"]]
-    valid = (
-        not frame.empty
-        and dates.notna().all()
-        and frame["Description"].fillna("").str.strip().ne("").all()
-        and ((debits > 0) ^ (credits > 0)).all()
-        and (amounts >= 0).all().all()
-        and amounts.eq(amounts.round(2)).all().all()
-    )
-    return rows, bool(valid and all(expected == actual for _, expected, actual, _ in rows))
+    return rows, bool(valid_transaction_rows(frame, dates) and all(
+        expected == actual for _, expected, actual, _ in rows
+    ))
 
 
 CANADIAN_BANKS = [

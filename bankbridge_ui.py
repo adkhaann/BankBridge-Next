@@ -65,27 +65,15 @@ def reconcile(df, info):
         rows, ok = eng.reconcile_dedicated_deposit(df, info)
     else:
         s = info.get("summary", {})
-        prev = s.get("previous_balance")
-        purchases = s.get("purchases_charges")
-        interest = s.get("interest") or 0.0
-        fees = s.get("fees") or 0.0
-        payments = s.get("payments_credits")
-        new_bal = s.get("new_balance")
-        expected = (purchases or 0.0) + interest + fees
-        charges_ok = abs(debit_total - expected) < 0.01
-        payments_ok = payments is not None and abs(credit_total - payments) < 0.01
-        calc, math_ok = None, False
-        if None not in (prev, payments, purchases, new_bal):
-            calc = prev - payments + purchases + interest + fees
-            math_ok = abs(calc - new_bal) < 0.01
-        ok = charges_ok and payments_ok and math_ok
-        rows.append(("Charges (purchases + interest + fees)", expected, debit_total, "$"))
-        rows.append(("Payments & credits", payments, credit_total, "$"))
-        rows.append(("New balance (statement vs. calculated)", new_bal, calc, "$"))
+        rows, ok = eng.reconcile_credit_card(df, info)
         details = [
-            ("Previous balance", prev), ("Purchases & charges", purchases),
-            ("Interest", interest), ("Fees", fees),
-            ("Payments & credits", payments), ("New balance", new_bal),
+            ("Previous balance", s.get("previous_balance")),
+            ("Purchases & charges (calculated)" if s.get("purchases_derived") else "Purchases & charges",
+             s.get("purchases_charges")),
+            ("Interest", s.get("interest")),
+            ("Fees", s.get("fees")),
+            ("Payments & credits", s.get("payments_credits")),
+            ("New balance", s.get("new_balance")),
         ]
 
     return {
@@ -388,7 +376,7 @@ else:
                         if kind == "n" else money
                     if stmt is None or ext is None:
                         mark = '<span class="bb-dim">—</span>'
-                    elif (kind == "n" and stmt == ext) or (kind == "$" and abs(stmt - ext) < 0.01):
+                    elif stmt == ext:
                         mark = '<span class="bb-ok">✓ Match</span>'
                     else:
                         mark = '<span class="bb-no">✕ Differs</span>'
@@ -401,7 +389,7 @@ else:
                 )
                 if rec["details"]:
                     st.write("")
-                    st.caption("Statement summary as printed on the PDF")
+                    st.caption("Statement summary")
                     st.markdown(
                         "<table class='bb-table'>" + "".join(
                             f"<tr><td>{k}</td><td class='num'>{money(v)}</td></tr>"

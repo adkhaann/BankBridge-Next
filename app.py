@@ -1936,6 +1936,7 @@ def get_credit_card_summary(
             or 0.0
         )
 
+        summary["purchases_derived"] = True
         summary["purchases_charges"] = round(
 
             summary["new_balance"]
@@ -3050,6 +3051,44 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     }
 
 
+def valid_transaction_rows(frame, dates):
+    amounts = frame[["Debit", "Credit"]]
+    return (
+        not frame.empty
+        and dates.notna().all()
+        and frame["Description"].fillna("").str.strip().ne("").all()
+        and ((frame["Debit"] > 0) ^ (frame["Credit"] > 0)).all()
+        and (amounts >= 0).all().all()
+        and amounts.eq(amounts.round(2)).all().all()
+        and (amounts < float("inf")).all().all()
+    )
+
+
+def reconcile_credit_card(frame, info):
+    summary = info.get("summary", {})
+    previous = summary.get("previous_balance")
+    purchases = summary.get("purchases_charges")
+    payments = summary.get("payments_credits")
+    closing = summary.get("new_balance")
+    interest = summary.get("interest") or 0.0
+    fees = summary.get("fees") or 0.0
+    charges = None if purchases is None else round(purchases + interest + fees, 2)
+    debits = round(float(frame["Debit"].sum()), 2)
+    credits = round(float(frame["Credit"].sum()), 2)
+    calculated = None if previous is None else round(previous + debits - credits, 2)
+    charge_label = "Charges implied by printed balances" if summary.get("purchases_derived") else "Charges (purchases + interest + fees)"
+    rows = [
+        (charge_label, charges, debits, "$"),
+        ("Payments & credits", payments, credits, "$"),
+        ("Closing balance", closing, calculated, "$"),
+    ]
+    dates = pd.to_datetime(frame["Date"], format="%Y-%m-%d", errors="coerce")
+    ok = valid_transaction_rows(frame, dates) and all(
+        expected is not None and expected == actual for _, expected, actual, _ in rows
+    )
+    return rows, bool(ok)
+
+
 def reconcile_universal_transactions(frame, info):
     control = info["control"]
     debits = frame["Debit"]
@@ -3080,16 +3119,10 @@ def reconcile_universal_transactions(frame, info):
     if info.get("period"):
         start, end = (pd.Timestamp(date) for date in info["period"])
         rows.append(("Transactions within statement period", len(frame), int(dates.between(start, end).sum()), "n"))
-    amounts = frame[["Debit", "Credit"]]
-    valid = (
-        not frame.empty
-        and dates.notna().all()
-        and frame["Description"].fillna("").str.strip().ne("").all()
-        and ((debits > 0) ^ (credits > 0)).all()
-        and (amounts >= 0).all().all()
-        and amounts.eq(amounts.round(2)).all().all()
-    )
-    return rows, bool(valid and all(expected == actual for _, expected, actual, _ in rows))
+    return rows, bool(valid_transaction_rows(frame, dates) and all(
+        expected == actual for _, expected, actual, _ in rows
+    ))
+
 
 
 CANADIAN_BANKS = [
@@ -3497,224 +3530,22 @@ if "transactions" in st.session_state:
 
 
         # =================================================
-        # CHEQUING RECONCILIATION
+        # STATEMENT RECONCILIATION
         # =================================================
 
         if statement_info["statement_type"] == "chequing":
             checks, reconciled = reconcile_dedicated_deposit(edited_df, statement_info)
-            if checks:
-                st.table(pd.DataFrame(
-                    [(label, expected, actual) for label, expected, actual, _ in checks],
-                    columns=["Check", "Statement", "BankBridge"],
-                ))
-            if reconciled:
-                st.success("Statement reconciles.")
-            else:
-                st.error("Transactions must match the printed statement controls before export.")
-
-        # =================================================
-        # CREDIT CARD RECONCILIATION
-        # =================================================
-
         else:
-
-            summary = (
-                statement_info[
-                    "summary"
-                ]
-            )
-
-            st.divider()
-
-            previous_balance = (
-                summary.get(
-                    "previous_balance"
-                )
-            )
-
-            purchases = (
-                summary.get(
-                    "purchases_charges"
-                )
-            )
-
-            interest = (
-                summary.get(
-                    "interest"
-                )
-                or 0.0
-            )
-
-            fees = (
-                summary.get(
-                    "fees"
-                )
-                or 0.0
-            )
-
-            payments = (
-                summary.get(
-                    "payments_credits"
-                )
-            )
-
-            new_balance = (
-                summary.get(
-                    "new_balance"
-                )
-            )
-
-            if previous_balance is not None:
-
-                st.write(
-                    "Previous Balance: "
-                    f"${previous_balance:,.2f}"
-                )
-
-            if purchases is not None:
-
-                st.write(
-                    "Purchases & Charges: "
-                    f"${purchases:,.2f}"
-                )
-
-            st.write(
-                "Interest: "
-                f"${interest:,.2f}"
-            )
-
-            st.write(
-                "Fees: "
-                f"${fees:,.2f}"
-            )
-
-            if payments is not None:
-
-                st.write(
-                    "Payments & Credits: "
-                    f"${payments:,.2f}"
-                )
-
-            if new_balance is not None:
-
-                st.write(
-                    "New Balance: "
-                    f"${new_balance:,.2f}"
-                )
-
-            expected_charges = (
-                (purchases or 0.0)
-                +
-                interest
-                +
-                fees
-            )
-
-            charges_match = (
-                abs(
-                    debit_total
-                    -
-                    expected_charges
-                )
-                < 0.01
-            )
-
-            payments_match = (
-                payments is not None
-                and
-                abs(
-                    credit_total
-                    -
-                    payments
-                )
-                < 0.01
-            )
-
-            statement_math_match = False
-
-            if (
-                previous_balance is not None
-                and
-                payments is not None
-                and
-                purchases is not None
-                and
-                new_balance is not None
-            ):
-
-                calculated_new_balance = (
-
-                    previous_balance
-
-                    -
-
-                    payments
-
-                    +
-
-                    purchases
-
-                    +
-
-                    interest
-
-                    +
-
-                    fees
-                )
-
-                statement_math_match = (
-                    abs(
-                        calculated_new_balance
-                        -
-                        new_balance
-                    )
-                    < 0.01
-                )
-
-            reconciled = (
-                charges_match
-                and
-                payments_match
-                and
-                statement_math_match
-            )
-
-            if reconciled:
-
-                st.success(
-                    "✓ CREDIT CARD STATEMENT RECONCILES"
-                )
-
-            else:
-
-                st.error(
-                    "CREDIT CARD STATEMENT "
-                    "DOES NOT RECONCILE"
-                )
-
-                st.write(
-                    "Expected Charges: "
-                    f"${expected_charges:,.2f}"
-                )
-
-                st.write(
-                    "Extracted Charges: "
-                    f"${debit_total:,.2f}"
-                )
-
-                if payments is not None:
-
-                    st.write(
-                        "Expected Payments/Credits: "
-                        f"${payments:,.2f}"
-                    )
-
-                    st.write(
-                        "Extracted Payments/Credits: "
-                        f"${credit_total:,.2f}"
-                    )
-
+            checks, reconciled = reconcile_credit_card(edited_df, statement_info)
+        if checks:
+            st.table(pd.DataFrame(
+                [(label, expected, actual) for label, expected, actual, _ in checks],
+                columns=["Check", "Statement", "BankBridge"],
+            ))
+        if reconciled:
+            st.success("Statement reconciles.")
+        else:
+            st.error("Transactions must match the printed statement controls before export.")
 
         # =================================================
         # DOWNLOADS
