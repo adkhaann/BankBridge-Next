@@ -3083,6 +3083,31 @@ def fill_blank_deposit_cell(line, columns, header_starts, has_running_balance):
     return columns
 
 
+def simplii_positioned_lines(words):
+    """Build table lines using a consistent horizontal scale for every PDF row."""
+    rows = {}
+    for x0, y0, x1, y1, word, *_ in words:
+        baseline = round(y1 / 2) * 2
+        rows.setdefault(baseline, []).append((x0, x1, word))
+
+    lines = []
+    for _, words_on_row in sorted(rows.items()):
+        groups = []
+        for left, right, word in sorted(words_on_row):
+            if groups and left - groups[-1][0] <= 8:
+                _, text = groups[-1]
+                groups[-1] = (right, f"{text} {word}")
+            else:
+                groups.append((right, word))
+        line = ""
+        for right, text in groups:
+            start = round(right / 2) - len(text)
+            gap = max(2 if line else 0, start - len(line))
+            line += " " * gap + text
+        lines.append(line)
+    return lines
+
+
 def normalize_simplii_chequing_table(lines, page_number):
     """Adapt the two-date Simplii table while retaining printed balance and amounts."""
     heading = re.compile(
@@ -3199,6 +3224,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
         for page in document:
             header_starts = None
+            text_page = None
             lines = page.get_text(sort=True).splitlines()
             if not any(line.strip() for line in lines):
                 if not use_ocr:
@@ -3211,7 +3237,11 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 if not any(line.strip() for line in lines):
                     raise ValueError(f"Local OCR found no readable text on page {page.number + 1}.")
             if bank == "Simplii Financial" and not is_card:
-                lines, forward = normalize_simplii_chequing_table(lines, page.number + 1)
+                if any(re.search(r"trans\..*eff\..*funds out.*funds in", line, re.IGNORECASE) for line in lines):
+                    positioned = simplii_positioned_lines(page.get_text("words", textpage=text_page))
+                    lines, forward = normalize_simplii_chequing_table(positioned, page.number + 1)
+                else:
+                    forward = None
                 if forward is not None and page.number > 0:
                     preceding_balance = running_balances[-1] if running_balances else controls.get("opening")
                     if universal_money_cents(forward) != preceding_balance:
@@ -3223,6 +3253,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     currencies.add(currency.group(1).upper())
                     continue
                 label, separator, value = line.replace("’", "'").partition(":")
+                label = " ".join(label.split())
                 normalized_label = label.strip().casefold()
                 if normalized_label in ("date format", "format de date"):
                     declared = UNIVERSAL_DATE_FORMATS.get(value.strip().upper())

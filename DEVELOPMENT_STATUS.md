@@ -33,7 +33,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Desktop experimental conversion now accepts explicit credit-card charge and payment/credit columns. It checks printed card totals and uses liability balance arithmetic. An unlisted issuer can use Other Canadian Bank / Credit Union with a credit card selection. A toggle enables this path for a bank with a dedicated parser. Experimental statements are eligible for CSV after reconciliation. QBO requires a confirmed institution and account mapping.
 
-- Added synthetic coverage for the Simplii no-fee chequing statement-period header with full English month names and a spaced dash. A second synthetic fixture mirrors the supplied two-date table with Funds out, Funds in, and Balance Forward. It reconciles against printed controls and tests mismatched carry-forward balances. The actual Simplii PDF and its summary layout still require an end-to-end retry.
+- Added synthetic coverage for the Simplii no-fee chequing statement-period header with full English month names and a spaced dash. A second synthetic fixture mirrors the supplied two-date table with Funds out, Funds in, and Balance Forward. Synthetic fixed-width and proportional-font fixtures reconcile against printed controls and test mismatched carry-forward balances. The actual Simplii PDF and its summary layout still require an end-to-end retry.
 
 - The portable Windows build includes an updater that uses GitHub CLI to fetch the latest passing development package. It validates the build marker, keeps the previous application files, and attempts automatic recovery if replacement fails. It preserves existing shortcuts and other files in the portable folder.
 
@@ -84,7 +84,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **73 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. The Windows CI smoke test covers executable build and local server startup. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. Recording, repeat-import behavior, and production statement mappings remain unverified.
+Test result on Linux with Python 3.12 was **74 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. The Windows CI smoke test covers executable build and local server startup. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. Recording, repeat-import behavior, and production statement mappings remain unverified.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
