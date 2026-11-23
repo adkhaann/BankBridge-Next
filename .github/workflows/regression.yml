@@ -33,3 +33,23 @@ jobs:
           python -c 'import fitz; assert fitz.get_tessdata(), "Tesseract trained data not found"'
       - name: Run regression suite
         run: python -m unittest discover -s tests -v
+
+  windows-package:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install application and packaging dependencies
+        run: python -m pip install -r requirements.txt "pyinstaller==6.*"
+      - name: Build BankBridgeNext
+        run: python -m PyInstaller --noconfirm --clean BankBridge.spec
+      - name: Check the packaged local server
+        env:
+          PYTHONPATH: .
+        run: python tests/windows_package_smoke.py
