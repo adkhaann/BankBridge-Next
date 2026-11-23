@@ -2896,6 +2896,31 @@ def universal_statement_date(value, declared_format=None):
     raise ValueError(f"Unrecognized or ambiguous transaction date: {value!r}.")
 
 
+def universal_transaction_date(value, declared_format, period):
+    day_first = re.fullmatch(r"\d{1,2}\s+[^\W\d_]+", value)
+    month_first = re.fullmatch(r"[A-Za-z]{3}\s+\d{1,2}", value)
+    if not (day_first or month_first):
+        return universal_statement_date(value, declared_format)
+    if period is None:
+        raise ValueError(f"A printed statement period is required for a date without a year: {value!r}.")
+
+    start, end = period
+    candidates = []
+    for year in range(int(start[:4]), int(end[:4]) + 1):
+        separator = ", " if month_first else " "
+        try:
+            date = universal_statement_date(f"{value}{separator}{year:04d}")
+        except ValueError:
+            continue
+        if start <= date <= end:
+            candidates.append(date)
+            if len(candidates) > 1:
+                break
+    if len(candidates) != 1:
+        raise ValueError(f"The date {value!r} must identify exactly one day in the printed statement period.")
+    return candidates[0]
+
+
 def detect_statement_selection(pdf_bytes):
     """Recognize explicit metadata and early exact institution headings."""
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
@@ -3051,7 +3076,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     layout = current_layout
                     header_starts = fixed_width_column_starts(raw_line, columns) if "\t" not in raw_line else None
                     continue
-                if not re.match(r"(?:\d{1,4}[-/. ]|[A-Za-z]{3}\s+\d{1,2},)", line):
+                if not re.match(r"(?:\d{1,4}[-/. ]|[A-Za-z]{3}\s+\d{1,2}(?:,|(?= {2,}|\t)))", line):
                     continue
                 if layout is None:
                     raise ValueError(f"Missing transaction headings on page {page.number + 1}.")
@@ -3086,7 +3111,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
             raise ValueError("The printed statement period is reversed or conflicts between pages.")
         period = printed_period
     rows = [
-        (universal_statement_date(date, date_format), description, debit, credit)
+        (universal_transaction_date(date, date_format, period), description, debit, credit)
         for date, description, debit, credit in rows
     ]
     balance = controls["opening"]
