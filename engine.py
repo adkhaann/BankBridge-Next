@@ -3005,6 +3005,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     controls = {}
     rows = []
     running_balances = []
+    source_pages = []
     layout = None
     currencies = set()
     printed_periods = []
@@ -3098,6 +3099,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
                     raise ValueError(f"Expected one positive debit or credit on page {page.number + 1}.")
                 rows.append((date, description, debit_cents, credit_cents))
+                source_pages.append(page.number + 1)
                 if has_running_balance:
                     running_balances.append(universal_money_cents(columns[-1]))
     if not rows or not {"opening", "closing", "debit", "credit"} <= controls.keys():
@@ -3128,6 +3130,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     for key, value in controls.items()},
         "running_balances": [balance / 100 for balance in running_balances],
         "period": period,
+        "source_pages": source_pages,
     }
 
 

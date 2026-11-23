@@ -337,10 +337,17 @@ else:
         else:
             tab_tx, tab_rec = st.tabs(["Transactions", "Reconciliation detail"])
             with tab_tx:
+                review_frame = df
+                if "source_pages" in info:
+                    review_frame = df.assign(SourcePage=pd.array(info["source_pages"], dtype="Int64"))
                 edited = st.data_editor(
-                    df, key=f"bb_editor_{ss['bb_run']}", width="stretch", hide_index=True,
+                    review_frame, key=f"bb_editor_{ss['bb_run']}", width="stretch", hide_index=True,
                     num_rows="dynamic", height=min(420, 38 + 35 * (len(df) + 1)),
                     column_config={
+                        "SourcePage": st.column_config.NumberColumn(
+                            "PDF page", help="Page of the original PDF containing this extracted row.",
+                            disabled=True, format="%d", width="small",
+                        ),
                         "Date": st.column_config.TextColumn("Date", width="small"),
                         "Description": st.column_config.TextColumn("Description", width="large"),
                         "Debit": st.column_config.NumberColumn("Debit", format="dollar", min_value=0.0),
