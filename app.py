@@ -3322,47 +3322,26 @@ uploaded_file = st.file_uploader(
 )
 
 
+process = False
 if uploaded_file is not None:
+    st.success(f"Uploaded: {uploaded_file.name}")
+    process = st.button("Process Statement", type="primary", disabled=extractor is None)
 
-    st.success(
-        f"Uploaded: {uploaded_file.name}"
-    )
+current_input = (uploaded_file.file_id if uploaded_file else None, bank, account_type)
+if st.session_state.get("statement_input") != current_input or process:
+    for key in ("transactions", "statement_info", "processed_account_type"):
+        st.session_state.pop(key, None)
+    st.session_state["statement_input"] = current_input
 
-    if st.button(
-        "Process Statement",
-        type="primary",
-        disabled=extractor is None
-    ):
-
-        pdf_bytes = (
-            uploaded_file.getvalue()
-        )
-
-        try:
-
-            df, statement_info = extractor(pdf_bytes)
-
-            st.session_state[
-                "transactions"
-            ] = df
-
-            st.session_state[
-                "statement_info"
-            ] = statement_info
-
-            st.session_state[
-                "processed_bank"
-            ] = bank
-
-            st.session_state[
-                "processed_account_type"
-            ] = account_type
-
-        except Exception as e:
-
-            st.error(
-                f"Unable to process statement: {e}"
-            )
+if process and uploaded_file is not None and extractor is not None:
+    try:
+        df, statement_info = extractor(uploaded_file.getvalue())
+        st.session_state["transactions"] = df
+        st.session_state["statement_info"] = statement_info
+        st.session_state["processed_account_type"] = account_type
+        st.session_state["statement_run"] = st.session_state.get("statement_run", 0) + 1
+    except Exception as error:
+        st.error(f"Unable to process statement: {error}")
 
 
 # =========================================================
@@ -3397,7 +3376,8 @@ if "transactions" in st.session_state:
 
         edited_df = st.data_editor(
             df,
-            use_container_width=True,
+            key=f"statement_editor_{st.session_state['statement_run']}",
+            width="stretch",
             hide_index=True,
             num_rows="dynamic",
             column_config={

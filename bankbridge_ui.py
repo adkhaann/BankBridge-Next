@@ -246,7 +246,6 @@ html_block(
 )
 
 ss = st.session_state
-has_results = "bb_df" in ss
 banks = list(eng.CANADIAN_BANKS)
 types = list(eng.ACCOUNT_TYPES)
 
@@ -278,7 +277,8 @@ with right:
     with st.container(key="card_upload"):
         step(2, "Upload statement", "Select the PDF statement to convert.")
         uploaded = st.file_uploader("Statement PDF", type=["pdf"], key="bb_file",
-                                    label_visibility="collapsed")
+                                    label_visibility="collapsed",
+                                    on_change=lambda: ss.pop("bb_detection", None))
         if uploaded is not None:
             st.button("Detect bank and account type", on_click=apply_detected_selection,
                       args=(uploaded.getvalue(),))
@@ -286,6 +286,12 @@ with right:
                 st.caption(ss["bb_detection"])
         go = st.button("Convert statement", type="primary", width="stretch",
                        disabled=(uploaded is None or extractor is None))
+
+current_input = (uploaded.file_id if uploaded else None, bank, account_type, use_ocr)
+if ss.get("bb_input") != current_input or go:
+    for key in ("bb_df", "bb_info", "bb_bank_done", "bb_type_done", "bb_file_done", "bb_error"):
+        ss.pop(key, None)
+    ss["bb_input"] = current_input
 
 if go and uploaded is not None and extractor is not None:
     with st.spinner("Reading statement…"):
@@ -295,13 +301,10 @@ if go and uploaded is not None and extractor is not None:
             ss["bb_bank_done"], ss["bb_type_done"] = bank, account_type
             ss["bb_file_done"] = uploaded.name
             ss["bb_run"] = ss.get("bb_run", 0) + 1
-            ss.pop("bb_error", None)
         except Exception as e:  # show the parser's message nicely
-            for k in ("bb_df", "bb_info"):
-                ss.pop(k, None)
             ss["bb_error"] = str(e) or e.__class__.__name__
-    has_results = "bb_df" in ss
 
+has_results = "bb_df" in ss
 if ss.get("bb_error"):
     st.error(f"**We couldn't read this statement.** {ss['bb_error']}\n\n"
              "Check that the bank and account type match the PDF, then try again.")
