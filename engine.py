@@ -2975,17 +2975,19 @@ def fixed_width_column_starts(line, columns):
     return starts
 
 
-def fill_blank_deposit_cell(line, columns, header_starts, has_running_balance):
+def fill_blank_amount_cell(line, columns, header_starts, has_running_balance, amount_index):
     starts = fixed_width_column_starts(line, columns)
-    if starts[:2] != header_starts[:2]:
+    if starts[:amount_index] != header_starts[:amount_index]:
         return columns
     if has_running_balance and starts[-1] != header_starts[-1]:
         return columns
-    if starts[2] == header_starts[2]:
-        return [*columns[:3], "-", *columns[3:]]
-    if starts[2] == header_starts[3]:
-        return [*columns[:2], "-", *columns[2:]]
-    return columns
+    if starts[amount_index] == header_starts[amount_index]:
+        blank_index = amount_index + 1
+    elif starts[amount_index] == header_starts[amount_index + 1]:
+        blank_index = amount_index
+    else:
+        return columns
+    return [*columns[:blank_index], "-", *columns[blank_index:]]
 
 
 def simplii_positioned_lines(words):
@@ -3148,6 +3150,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     rows = []
     running_balances = []
     source_pages = []
+    posting_dates = []
     layout = None
     currencies = set()
     printed_periods = []
@@ -3224,9 +3227,16 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 headings = tuple(column.strip().lower() for column in columns)
                 running = headings[-1] in ("balance", "solde")
                 base_headings = headings[:-1] if running else headings
+                has_posting_date = is_card and base_headings[:2] in (
+                    ("transaction date", "posting date"),
+                    ("transaction date", "posted date"),
+                    ("date de transaction", "date de comptabilisation"),
+                )
+                if has_posting_date:
+                    base_headings = ("date", *base_headings[2:])
                 credit_first = base_headings in credit_first_headers
                 if credit_first or base_headings in debit_first_headers or base_headings in signed_headers:
-                    current_layout = (len(base_headings), running, credit_first)
+                    current_layout = (len(base_headings), running, credit_first, has_posting_date)
                     if layout is not None and current_layout != layout:
                         raise ValueError("Transaction headings changed between pages.")
                     layout = current_layout
@@ -3236,19 +3246,24 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     continue
                 if layout is None:
                     raise ValueError(f"Missing transaction headings on page {page.number + 1}.")
-                transaction_columns, has_running_balance, credit_first = layout
-                expected_columns = transaction_columns + has_running_balance
+                transaction_columns, has_running_balance, credit_first, has_posting_date = layout
+                description_index = 2 if has_posting_date else 1
+                amount_index = description_index + 1
+                expected_columns = transaction_columns + has_running_balance + has_posting_date
                 if (transaction_columns == 4 and len(columns) == expected_columns - 1
                         and header_starts is not None and "\t" not in raw_line):
-                    columns = fill_blank_deposit_cell(raw_line, columns, header_starts, has_running_balance)
+                    columns = fill_blank_amount_cell(raw_line, columns, header_starts, has_running_balance, amount_index)
                 if len(columns) != expected_columns:
                     raise ValueError(f"Unrecognized transaction columns on page {page.number + 1}.")
-                date, description = columns[:2]
+                date, description = columns[0], columns[description_index]
+                if has_posting_date:
+                    posting_dates.append(columns[1])
                 if transaction_columns == 3:
-                    signed = universal_money_cents(columns[2])
+                    signed = universal_money_cents(columns[amount_index])
                     debit_cents, credit_cents = max(-signed, 0), max(signed, 0)
                 else:
-                    debit, credit = columns[2:4][::-1] if credit_first else columns[2:4]
+                    amounts = columns[amount_index:amount_index + 2]
+                    debit, credit = amounts[::-1] if credit_first else amounts
                     debit_cents = 0 if debit in ("-", "—") else universal_money_cents(debit)
                     if is_card:
                         credit = re.sub(r"\s+CR$", "", credit, flags=re.IGNORECASE)
@@ -3273,6 +3288,11 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         if printed_period[0] > printed_period[1] or (period and period != printed_period):
             raise ValueError("The printed statement period is reversed or conflicts between pages.")
         period = printed_period
+    for posting_date in posting_dates:
+        try:
+            universal_transaction_date(posting_date, date_format, period)
+        except ValueError as error:
+            raise ValueError(f"Invalid card posting date: {error}") from error
     rows = [
         (universal_transaction_date(date, date_format, period), description, debit, credit)
         for date, description, debit, credit in rows
