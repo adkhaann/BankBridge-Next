@@ -3374,7 +3374,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     preceding_balance = running_balances[-1] if running_balances else controls.get("opening")
                     if universal_money_cents(forward) != preceding_balance:
                         raise ValueError(f"Simplii balance forward differs from the preceding balance on page {page.number + 1}.")
-            for raw_line in lines:
+            last_transaction_line = None
+            for line_number, raw_line in enumerate(lines):
                 line = raw_line.strip()
                 currency = re.fullmatch(STATEMENT_CURRENCY_PATTERN, line, re.IGNORECASE)
                 if currency:
@@ -3441,6 +3442,16 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     rf"(?:\d{{1,4}}[-/. ]|{ENGLISH_STATEMENT_MONTH}\s+\d{{1,2}}(?:,|(?= {{2,}}|\t)))",
                     line, re.IGNORECASE,
                 ):
+                    if (last_transaction_line == line_number - 1 and header_starts is not None
+                            and len(columns) == 1 and line and "\t" not in raw_line):
+                        description_column = 2 if layout[3] else 1
+                        start = len(raw_line) - len(raw_line.lstrip(" "))
+                        end = len(raw_line.rstrip())
+                        if (start == header_starts[description_column]
+                                and end <= header_starts[description_column + 1]):
+                            date, description, debit, credit = rows[-1]
+                            rows[-1] = (date, f"{description} {line}", debit, credit)
+                            last_transaction_line = line_number
                     continue
                 if layout is None:
                     raise ValueError(f"Missing transaction headings on page {page.number + 1}.")
@@ -3471,6 +3482,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
                     raise ValueError(f"Expected one positive debit or credit on page {page.number + 1}.")
                 rows.append((date, description, debit_cents, credit_cents))
+                last_transaction_line = line_number
                 source_pages.append(page.number + 1)
                 if has_running_balance:
                     running_balances.append(universal_money_cents(columns[-1]))

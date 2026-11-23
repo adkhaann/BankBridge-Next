@@ -9,7 +9,7 @@ def fixed_row(date, description, debit="", credit="", balance=""):
 
 
 class BlankDepositColumnTests(unittest.TestCase):
-    def convert(self, *, running=True, include_second_heading=True, shifted=False):
+    def convert(self, *, running=True, include_second_heading=True, shifted=False, wrapped=False):
         heading = fixed_row("Date", "Description", "Debit", "Credit", "Balance" if running else "")
         credit = " 25.00" if shifted else "25.00"
         pdf = statement_pdf(
@@ -21,6 +21,7 @@ class BlankDepositColumnTests(unittest.TestCase):
                 "Transaction count: 2",
                 heading,
                 fixed_row("2026-01-05", "Synthetic expense", debit="10.00", balance="90.00" if running else ""),
+                *([fixed_row("", "reference ABC"), "Statement footer", fixed_row("", "footer note")] if wrapped else []),
             ],
             ([heading] if include_second_heading else []) + [
                 fixed_row("2026-01-08", "Synthetic deposit", credit=credit, balance="115.00" if running else ""),
@@ -40,3 +41,9 @@ class BlankDepositColumnTests(unittest.TestCase):
             with self.subTest(changes=changes):
                 with self.assertRaisesRegex(ValueError, "Unrecognized transaction columns"):
                     self.convert(**changes)
+
+    def test_adjacent_description_continuation_preserves_reconciliation(self):
+        frame, info = self.convert(wrapped=True)
+        self.assertEqual(frame["Description"].tolist(), ["Synthetic expense reference ABC", "Synthetic deposit"])
+        self.assertEqual(info["source_pages"], [1, 2])
+        self.assertTrue(engine.reconcile_universal_transactions(frame, info)[1])
