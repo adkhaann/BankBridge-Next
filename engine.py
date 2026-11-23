@@ -3365,6 +3365,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     controls = {}
     rows = []
     running_balances = []
+    carried_balances = []
     source_pages = []
     posting_dates = []
     layout = None
@@ -3439,6 +3440,13 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     if key in controls and controls[key] != recorded:
                         raise ValueError(f"Conflicting printed {label.lower()}.")
                     controls[key] = recorded
+                    continue
+                carried = re.fullmatch(
+                    r"(?:balance forward|balance brought forward|solde reporté)(?:\s*:\s*|\s{2,})(.+)",
+                    line, re.IGNORECASE,
+                )
+                if carried:
+                    carried_balances.append((len(rows), page.number + 1, universal_money_cents(carried.group(1))))
                     continue
                 columns = re.split(r"\t+| {2,}", line)
                 headings = tuple(column.strip().lower() for column in columns)
@@ -3533,6 +3541,18 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         rows = classify_signed_card_rows(rows, controls, running_balances)
     elif not statement_running_balances_match(rows, controls["opening"], running_balances, is_card=is_card):
         raise ValueError("A printed running balance differs from the calculated balance.")
+    carried_checks = []
+    calculated = controls["opening"]
+    previous_row_count = 0
+    for row_count, page_number, printed in carried_balances:
+        calculated += sum(
+            debit - credit if is_card else credit - debit
+            for _, _, debit, credit in rows[previous_row_count:row_count]
+        )
+        previous_row_count = row_count
+        if printed != calculated:
+            raise ValueError(f"The printed balance forward on page {page_number} differs from the calculated balance.")
+        carried_checks.append((row_count, page_number, printed / 100))
     frame = pd.DataFrame(rows, columns=["Date", "Description", "Debit", "Credit"])
     frame[["Debit", "Credit"]] = frame[["Debit", "Credit"]] / 100
     return frame, {
@@ -3542,6 +3562,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         "control": {key: value if key.endswith("_count") else value / 100
                     for key, value in controls.items()},
         "running_balances": [balance / 100 for balance in running_balances],
+        "carried_balances": carried_checks,
         "period": period,
         "source_pages": source_pages,
     }
@@ -3606,6 +3627,11 @@ def reconcile_universal_transactions(frame, info):
     ):
         if key in control:
             rows.append((label, control[key], actual, "n"))
+    for row_count, page_number, expected in info.get("carried_balances", []):
+        actual = round(control["opening"] + float(changes.iloc[:row_count].sum()), 2)
+        if row_count > len(frame):
+            actual = None
+        rows.append((f"Balance forward on page {page_number}", expected, actual, "$"))
     balances = info.get("running_balances", [])
     if balances:
         calculated_balances = (control["opening"] + changes.cumsum()).round(2)
