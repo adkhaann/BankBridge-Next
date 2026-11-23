@@ -3155,29 +3155,69 @@ def universal_transaction_date(value, declared_format, period):
     return candidates[0]
 
 
+STATEMENT_BANK_ALIASES = {
+    "td": "TD Canada Trust",
+    "rbc": "RBC Royal Bank",
+    "rbc banque royale": "RBC Royal Bank",
+    "bmo": "BMO Bank of Montreal",
+    "bmo banque de montréal": "BMO Bank of Montreal",
+    "bank of montreal": "BMO Bank of Montreal",
+    "banque de montréal": "BMO Bank of Montreal",
+    "banque scotia": "Scotiabank",
+    "banque nationale du canada": "National Bank of Canada",
+    "banque laurentienne du canada": "Laurentian Bank of Canada",
+    "tangerine": "Tangerine Bank",
+}
+
+STATEMENT_ACCOUNT_ALIASES = {
+    "compte-chèques personnel": "Personal Chequing",
+    "compte-chèques d’entreprise": "Business Chequing",
+    "compte d’épargne personnel": "Personal Savings",
+    "compte d’épargne d’entreprise": "Business Savings",
+    "carte de crédit": "Credit Card",
+    "carte de crédit d’entreprise": "Business Credit Card",
+}
+
+STATEMENT_PRODUCT_HEADINGS = {
+    "td business cash back visa": ("TD Canada Trust", "Business Credit Card"),
+    "your no fee chequing account": ("Simplii Financial", "Personal Chequing"),
+}
+
+
 def detect_statement_selection(pdf_bytes):
-    """Recognize explicit metadata and early exact institution headings."""
+    """Recognize explicit metadata and exact headings on the first page."""
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
         if not len(document):
             return {}
-        lines = [line.strip() for line in document[0].get_text(sort=True).splitlines() if line.strip()]
-    choices = {
-        "bank": {name.casefold(): name for name in CANADIAN_BANKS},
-        "account type": {name.casefold(): name for name in ACCOUNT_TYPES},
+        lines = [
+            " ".join(line.casefold().replace("'", "’").split())
+            for line in document[0].get_text(sort=True).splitlines() if line.strip()
+        ]
+    banks = {name.casefold(): name for name in CANADIAN_BANKS} | STATEMENT_BANK_ALIASES
+    accounts = {name.casefold(): name for name in ACCOUNT_TYPES} | STATEMENT_ACCOUNT_ALIASES
+    labels = {
+        "bank": "bank", "banque": "bank",
+        "account type": "account type", "type de compte": "account type",
     }
+    choices = {"bank": banks, "account type": accounts}
     matches = {key: set() for key in choices}
     for line in lines:
         label, separator, value = line.partition(":")
-        category = label.strip().casefold()
-        if separator and category in choices:
-            match = choices[category].get(value.strip().casefold())
+        category = labels.get(label.strip())
+        if separator and category:
+            match = choices[category].get(value.strip())
             if match:
                 matches[category].add(match)
-    if not matches["bank"]:
-        for line in lines[:8]:
-            bank = choices["bank"].get(line.casefold())
-            if bank:
-                matches["bank"].add(bank)
+    for line in lines[:8]:
+        if line in banks:
+            matches["bank"].add(banks[line])
+    for line in lines:
+        if product := STATEMENT_PRODUCT_HEADINGS.get(line):
+            bank, account = product
+            matches["bank"].add(bank)
+            matches["account type"].add(account)
+    if len(matches["bank"]) > 1:
+        return {}
     return {key: next(iter(values)) for key, values in matches.items() if len(values) == 1}
 
 

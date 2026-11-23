@@ -182,6 +182,31 @@ class StatementSelectionTests(unittest.TestCase):
         ]))
         self.assertEqual(result, {"bank": "Tangerine Bank", "account type": "Personal Savings"})
 
+    def test_detects_french_labels_and_catalog_aliases(self):
+        page = statement_pdf(["Banque : RBC Banque Royale", "Type de compte : Carte de crédit"])
+        self.assertEqual(engine.detect_statement_selection(page), {
+            "bank": "RBC Royal Bank", "account type": "Credit Card",
+        })
+
+    def test_detects_exact_product_headings(self):
+        for heading, bank, account in (
+            ("TD Business Cash Back Visa", "TD Canada Trust", "Business Credit Card"),
+            ("your no fee chequing account", "Simplii Financial", "Personal Chequing"),
+        ):
+            with self.subTest(heading=heading):
+                page = statement_pdf(["Statement header"] * 10 + [heading])
+                self.assertEqual(engine.detect_statement_selection(page), {
+                    "bank": bank, "account type": account,
+                })
+
+    def test_conflicting_bank_heading_and_metadata_do_not_change_selections(self):
+        page = statement_pdf(["Bank: RBC", "TD Business Cash Back Visa"])
+        self.assertEqual(engine.detect_statement_selection(page), {})
+
+    def test_product_text_in_transaction_is_not_a_heading(self):
+        page = statement_pdf(["2026-01-05 TD Business Cash Back Visa 25.00"])
+        self.assertEqual(engine.detect_statement_selection(page), {})
+
     def test_does_not_guess_unknown_or_conflicting_selections(self):
         result = engine.detect_statement_selection(statement_pdf([
             "Synthetic Bank", "Account type: Personal Savings", "Account type: Business Savings",
