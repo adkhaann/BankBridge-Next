@@ -40,12 +40,12 @@ EXTRACTORS = {
 }
 
 
-def get_extractor(bank, account_type):
+def get_extractor(bank, account_type, *, use_ocr=False):
     name = EXTRACTORS.get((bank, account_type))
     if name:
         return getattr(eng, name, None)
     if account_type in eng.UNIVERSAL_DEPOSIT_TYPES:
-        return lambda data: eng.extract_universal_transactions(data, bank, account_type)
+        return lambda data: eng.extract_universal_transactions(data, bank, account_type, use_ocr=use_ocr)
     return None
 
 
@@ -321,8 +321,10 @@ with left:
             index=types.index("Business Chequing") if "Business Chequing" in types else 0,
             key="bb_type",
         )
-        extractor = get_extractor(bank, account_type)
-        if extractor and (bank, account_type) not in EXTRACTORS:
+        universal = account_type in eng.UNIVERSAL_DEPOSIT_TYPES and (bank, account_type) not in EXTRACTORS
+        use_ocr = st.checkbox("Use local OCR for scanned pages", value=False) if universal else False
+        extractor = get_extractor(bank, account_type, use_ocr=use_ocr)
+        if universal:
             st.info("Experimental universal deposit parser. CSV only after reconciliation.")
         elif extractor:
             st.markdown(f'<span class="bb-badge ok">● Dedicated parser — {html.escape(bank)} · '
@@ -333,7 +335,7 @@ with left:
 
 with right:
     with st.container(key="card_upload"):
-        step(2, "Upload statement", "PDF downloaded from online banking (not a scan).")
+        step(2, "Upload statement", "Select the PDF statement to convert.")
         uploaded = st.file_uploader("Statement PDF", type=["pdf"], key="bb_file",
                                     label_visibility="collapsed")
         go = st.button("Convert statement", type="primary", width="stretch",

@@ -2760,7 +2760,7 @@ def universal_statement_date(value):
     raise ValueError(f"Unrecognized or ambiguous transaction date: {value!r}.")
 
 
-def extract_universal_transactions(pdf_bytes, bank, account_type):
+def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=False):
     """Read explicit deposit columns and independently printed statement controls."""
     if account_type not in UNIVERSAL_DEPOSIT_TYPES:
         raise ValueError("The experimental parser supports deposit statements only.")
@@ -2782,11 +2782,20 @@ def extract_universal_transactions(pdf_bytes, bank, account_type):
     running_balances = []
     has_running_balance = None
     currencies = set()
+    period = None
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
         for page in document:
             lines = page.get_text(sort=True).splitlines()
             if not any(line.strip() for line in lines):
-                raise ValueError(f"Page {page.number + 1} has no readable text. Use a text PDF.")
+                if not use_ocr:
+                    raise ValueError(f"Page {page.number + 1} has no readable text. Enable local OCR or use a text PDF.")
+                try:
+                    text_page = page.get_textpage_ocr(dpi=300, full=True)
+                except (RuntimeError, ValueError) as error:
+                    raise ValueError("Local OCR is unavailable. Install Tesseract and configure TESSDATA_PREFIX.") from error
+                lines = page.get_text(sort=True, textpage=text_page).splitlines()
+                if not any(line.strip() for line in lines):
+                    raise ValueError(f"Local OCR found no readable text on page {page.number + 1}.")
             for line in lines:
                 line = line.strip()
                 currency = re.fullmatch(r"Currency\s*:?\s*([A-Z]{3})", line, re.IGNORECASE)
@@ -2794,6 +2803,15 @@ def extract_universal_transactions(pdf_bytes, bank, account_type):
                     currencies.add(currency.group(1).upper())
                     continue
                 label, separator, value = line.partition(":")
+                if label.strip().lower() == "statement period":
+                    dates = re.split(r"\s+to\s+", value.strip(), flags=re.IGNORECASE)
+                    if len(dates) != 2:
+                        raise ValueError("Expected a statement period with a start and end date.")
+                    printed_period = tuple(universal_statement_date(date) for date in dates)
+                    if printed_period[0] > printed_period[1] or (period and period != printed_period):
+                        raise ValueError("The printed statement period is reversed or conflicts between pages.")
+                    period = printed_period
+                    continue
                 if not separator:
                     summary = re.fullmatch(
                         r"(" + "|".join(labels) + r")\s+(.+)", line, re.IGNORECASE
@@ -2850,6 +2868,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type):
         "control": {key: value if key.endswith("_count") else value / 100
                     for key, value in controls.items()},
         "running_balances": [balance / 100 for balance in running_balances],
+        "period": period,
     }
 
 
@@ -2879,10 +2898,14 @@ def reconcile_universal_transactions(frame, info):
         rows.append(("Running balances matched", len(balances), matches, "n"))
         rows.append(("Rows with printed balances", len(balances), len(frame), "n"))
 
+    dates = pd.to_datetime(frame["Date"], format="%Y-%m-%d", errors="coerce")
+    if info.get("period"):
+        start, end = (pd.Timestamp(date) for date in info["period"])
+        rows.append(("Transactions within statement period", len(frame), int(dates.between(start, end).sum()), "n"))
     amounts = frame[["Debit", "Credit"]]
     valid = (
         not frame.empty
-        and pd.to_datetime(frame["Date"], format="%Y-%m-%d", errors="coerce").notna().all()
+        and dates.notna().all()
         and frame["Description"].fillna("").str.strip().ne("").all()
         and ((debits > 0) ^ (credits > 0)).all()
         and (amounts >= 0).all().all()

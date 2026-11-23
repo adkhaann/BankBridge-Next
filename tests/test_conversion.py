@@ -105,3 +105,32 @@ class UniversalDepositTests(unittest.TestCase):
             self.parse([line for line in self.first if not line.startswith("Opening")])
         with self.assertRaisesRegex(ValueError, "ambiguous transaction date"):
             self.parse(second=[self.headings, self.second[1].replace("08 Jan 2026", "01/08/2026")])
+
+    def test_edited_dates_must_stay_within_the_printed_period(self):
+        frame, info = self.parse(self.first + ["Statement period: 2026-01-01 to 2026-01-31"])
+        self.assertTrue(engine.reconcile_universal_transactions(frame, info)[1])
+        frame.loc[0, "Date"] = "2026-02-05"
+        self.assertFalse(engine.reconcile_universal_transactions(frame, info)[1])
+
+    def test_scanned_page_requires_opt_in(self):
+        with fitz.open(stream=statement_pdf(self.first + self.second), filetype="pdf") as source:
+            pixmap = source[0].get_pixmap(dpi=180)
+            with fitz.open() as document:
+                page = document.new_page()
+                page.insert_image(page.rect, pixmap=pixmap)
+                with self.assertRaisesRegex(ValueError, "Enable local OCR"):
+                    engine.extract_universal_transactions(document.tobytes(), "Other", "Personal Savings")
+
+    def test_local_ocr_of_synthetic_scan_reconciles(self):
+        if not fitz.get_tessdata():
+            self.skipTest("Tesseract language data unavailable")
+        with fitz.open(stream=statement_pdf(self.first + self.second[1:]), filetype="pdf") as source:
+            pixmap = source[0].get_pixmap(dpi=300)
+            with fitz.open() as document:
+                page = document.new_page()
+                page.insert_image(page.rect, pixmap=pixmap)
+                frame, info = engine.extract_universal_transactions(
+                    document.tobytes(), "Other", "Personal Savings", use_ocr=True
+                )
+        self.assertEqual(frame["Description"].tolist(), ["Synthetic debit", "Synthetic credit"])
+        self.assertTrue(engine.reconcile_universal_transactions(frame, info)[1])
