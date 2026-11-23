@@ -2294,10 +2294,42 @@ def extract_td_credit_card_transactions(
     return df, statement_info
 
 
+def generate_easyweb_iif(frame, info, bank_account, clearing_account):
+    """Create a transaction-only IIF for a reconciled TD EasyWeb printout."""
+    if not info.get("td_easyweb") or info.get("currency") not in (None, "CAD"):
+        raise ValueError("IIF is available for CAD TD EasyWeb activity printouts.")
+    if not reconcile_dedicated_deposit(frame, info)[1]:
+        raise ValueError("Reconcile the statement before exporting IIF.")
+
+    bank_account = bank_account.strip()
+    clearing_account = clearing_account.strip()
+    for name in (bank_account, clearing_account):
+        if not re.fullmatch(r'[ -!#-~]+', name):
+            raise ValueError("Enter both QuickBooks account names using printable ASCII without double quotes.")
+    if bank_account.casefold() == clearing_account.casefold():
+        raise ValueError("Choose a different account for the clearing entry.")
+
+    columns = "TRNSTYPE\tDATE\tACCNT\tAMOUNT\tMEMO\tCLEAR"
+    lines = [f"!TRNS\t{columns}", f"!SPL\t{columns}", "!ENDTRNS"]
+    for number, row in enumerate(frame.itertuples(index=False), 1):
+        date = datetime.strptime(row.Date, "%Y-%m-%d").strftime("%m/%d/%Y")
+        memo = " ".join(row.Description.split()).replace('"', "'")
+        if not re.fullmatch(r"[ -~]+", memo):
+            raise ValueError(f"Transaction {number} contains characters outside ASCII. Edit its description for IIF export.")
+        amount = row.Credit - row.Debit
+        kind = "DEPOSIT" if amount > 0 else "CHECK"
+        lines.extend((
+            f"TRNS\t{kind}\t{date}\t{bank_account}\t{amount:.2f}\t{memo}\tN",
+            f"SPL\t{kind}\t{date}\t{clearing_account}\t{-amount:.2f}\t{memo}\tN",
+            "ENDTRNS",
+        ))
+    return ("\r\n".join(lines) + "\r\n").encode("ascii")
+
+
 def make_qbo(df, info, account_type):
     """Route QBO only when the statement provides the required account data."""
     if info.get("td_easyweb"):
-        return None, "TD EasyWeb activity printouts are eligible for reconciled CSV export."
+        return None, "QBO is unavailable for TD EasyWeb activity printouts."
     if info.get("universal"):
         return None, "QBO requires a verified institution and account mapping."
     currency = info.get("currency")

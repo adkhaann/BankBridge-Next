@@ -64,6 +64,10 @@ For a QuickBooks Online import check, use a test company, upload a CSV through *
 
 Choose **TD Canada Trust → Business Chequing** and use the dedicated parser. The activity printout must include the displayed date range, the withdrawals and deposits table with running balances, and the printed totals. Reconciled activity exports to CSV.
 
+For the **QuickBooks Desktop IIF (preview)** option, enter the full names of the existing CAD bank and clearing accounts exactly as shown in the Chart of Accounts. Use the full parent:subaccount path for a subaccount. The export uses the clearing account for all offsets, so review and reclassify those entries as appropriate. The file uses Intuit's ASCII IIF format. If a description contains unsupported characters, the app points to the row to review.
+
+To try the preview, convert the packaged `samples/Synthetic-TD-EasyWeb.pdf`, which contains a $10.00 withdrawal and $25.00 deposit. Import the file first in a test company via **File → Utilities → Import → IIF Files**. Check the bank register for the dates, withdrawals and deposits, and the clearing register for the opposite amounts. IIF posts directly to the registers and repeat or overlapping imports can duplicate entries. Use a fresh test company or restore its backup before retrying. [Intuit's QuickBooks Desktop IIF instructions](https://quickbooks.intuit.com/learn-support/en-ca/help-article/import-export-files/export-import-edit-iif-files/L56LT9Z0Q_CA_en_CA)
+
 ### Convert a statement from another institution
 
 In the desktop app, choose **Other Canadian Bank / Credit Union** and select the account type. For a bank with a dedicated parser, select **Try experimental statement parser** to use the fallback on a different layout. Compatible statements can export CSV after reconciliation.

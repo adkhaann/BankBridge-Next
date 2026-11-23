@@ -12,6 +12,7 @@ from playwright.sync_api import expect, sync_playwright
 from run_app import free_port, wait_until_ready
 from test_rbc_deposit import rbc_statement
 from test_td_deposit import td_statement
+from test_td_easyweb import easyweb_printout
 
 
 def convert_pdf(page, name, data):
@@ -49,6 +50,31 @@ def check_rbc_exports(page):
         raise RuntimeError("The RBC QBO did not retain two unique IDs across repeat downloads.")
 
 
+def check_iif_export(page):
+    convert_pdf(page, "Synthetic-TD-EasyWeb.pdf", easyweb_printout())
+    expect(page.get_by_text("✓ Reconciled", exact=True)).to_be_visible()
+    page.get_by_text("QuickBooks Desktop IIF (preview)", exact=True).click()
+    button_name = "Download IIF for QuickBooks Desktop"
+    expect(page.get_by_role("button", name=button_name)).to_be_disabled()
+    for label, account in (
+        ("QuickBooks bank account", "TD Chequing"),
+        ("QuickBooks clearing account", "Bank Imports Clearing"),
+    ):
+        field = page.get_by_role("textbox", name=label)
+        field.fill(account)
+        field.press("Enter")
+    page.get_by_role("checkbox", name="I confirmed the statement and both QuickBooks accounts use CAD.").check()
+    rows = download_path(page, button_name).read_text(encoding="ascii").splitlines()
+    actual = [line.split("\t")[1:5] for line in rows if line.startswith(("TRNS\t", "SPL\t"))]
+    if actual != [
+        ["CHECK", "01/05/2026", "TD Chequing", "-10.00"],
+        ["CHECK", "01/05/2026", "Bank Imports Clearing", "10.00"],
+        ["DEPOSIT", "01/08/2026", "TD Chequing", "25.00"],
+        ["DEPOSIT", "01/08/2026", "Bank Imports Clearing", "-25.00"],
+    ]:
+        raise RuntimeError("The downloaded EasyWeb IIF did not contain the expected balanced postings.")
+
+
 def check_dashboard(port, *, executable_path=None):
     with sync_playwright() as playwright:
         launch_options = {"executable_path": executable_path} if executable_path else {"channel": "msedge"}
@@ -73,6 +99,7 @@ def check_dashboard(port, *, executable_path=None):
             ]
             if rows != expected:
                 raise RuntimeError(f"The synthetic CSV differed from the expected rows: {rows!r}.")
+            check_iif_export(page)
             rbc_page = browser.new_page(accept_downloads=True)
             rbc_page.set_default_timeout(30_000)
             rbc_page.goto(f"http://127.0.0.1:{port}/")
@@ -89,7 +116,7 @@ def main():
                 if not wait_until_ready(port, process):
                     raise RuntimeError("The packaged BankBridgeNext server did not become ready.")
                 check_dashboard(port)
-                print("The packaged app verified TD CSV, RBC QBO, and the export gate for a mismatched statement.")
+                print("The packaged app verified TD CSV, EasyWeb IIF, RBC QBO, and the export gate for a mismatched statement.")
             except Exception:
                 log = Path(local_app_data) / "BankBridgeNext" / "bankbridge.log"
                 if log.exists():

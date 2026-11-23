@@ -59,7 +59,7 @@ jobs:
           Set-Content -Path dist/BankBridgeNext/BankBridgeNext.build -Value $env:GITHUB_SHA -Encoding ASCII
       - name: Install browser test dependency
         run: python -m pip install "playwright==1.58.0"
-      - name: Check packaged CSV and QBO exports
+      - name: Check packaged CSV, QBO, and IIF exports
         env:
           PYTHONPATH: .
         run: python tests/windows_package_smoke.py
@@ -72,11 +72,13 @@ jobs:
           from pathlib import Path
           from test_rbc_deposit import rbc_statement
           from test_td_deposit import td_statement
+          from test_td_easyweb import easyweb_printout
 
           samples = Path("dist/BankBridgeNext/samples")
           samples.mkdir()
           (samples / "Synthetic-TD-Business-Chequing.pdf").write_bytes(td_statement())
           (samples / "Synthetic-RBC-Business-Chequing.pdf").write_bytes(rbc_statement())
+          (samples / "Synthetic-TD-EasyWeb.pdf").write_bytes(easyweb_printout())
       - name: Upload Windows development package
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v6

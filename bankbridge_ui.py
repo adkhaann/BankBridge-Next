@@ -484,5 +484,33 @@ else:
                         if qbo_note:
                             st.caption(qbo_note)
 
+                if info.get("td_easyweb") and info.get("currency") in (None, "CAD"):
+                    with st.expander("QuickBooks Desktop IIF (preview)"):
+                        st.info("IIF posts directly to your QuickBooks registers. "
+                                "Import into a test company first and check for duplicates before importing.")
+                        st.caption(
+                            f"{rec['count']} transactions · {money(rec['debit_total'])} out · "
+                            f"{money(rec['credit_total'])} in. Use the full names of two existing "
+                            "QuickBooks accounts, including any parent accounts."
+                        )
+                        iif_key = f"bb_iif_{ss['bb_run']}"
+                        bank_account = st.text_input("QuickBooks bank account", key=f"{iif_key}_bank")
+                        clearing_account = st.text_input("QuickBooks clearing account", key=f"{iif_key}_clearing")
+                        confirmed = st.checkbox(
+                            "I confirmed the statement and both QuickBooks accounts use CAD.",
+                            key=f"{iif_key}_confirm",
+                        )
+                        iif_data = None
+                        if bank_account.strip() and clearing_account.strip() and confirmed:
+                            try:
+                                iif_data = eng.generate_easyweb_iif(edited, info, bank_account, clearing_account)
+                            except ValueError as error:
+                                st.warning(str(error))
+                        st.download_button(
+                            "Download IIF for QuickBooks Desktop", data=iif_data or b"",
+                            file_name=f"{stem}.iif", mime="application/octet-stream",
+                            disabled=iif_data is None, width="stretch",
+                        )
+
 st.markdown(f'<div class="bb-footer">BankBridge {APP_VERSION} · Tax Square Professional Corporation</div>',
             unsafe_allow_html=True)

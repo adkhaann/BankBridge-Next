@@ -1,8 +1,12 @@
 import csv
 import io
+from pathlib import Path
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import fitz
+from streamlit.testing.v1 import AppTest
 
 import engine
 
@@ -47,3 +51,55 @@ class TdEasyWebTests(unittest.TestCase):
     def test_even_zero_rows_must_match_printed_running_balances(self):
         with self.assertRaisesRegex(ValueError, "printed running balance"):
             engine.extract_td_chequing_transactions(easyweb_printout(zero_balance="115.01"))
+
+    def test_iif_writes_balanced_entries_without_account_or_payee_creation(self):
+        frame, info = engine.extract_td_chequing_transactions(easyweb_printout())
+        result = engine.generate_easyweb_iif(frame, info, "TD Chequing", "Clearing:Bank Imports")
+        self.assertEqual(result.decode("ascii").splitlines(), [
+            "!TRNS\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tMEMO\tCLEAR",
+            "!SPL\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tMEMO\tCLEAR",
+            "!ENDTRNS",
+            "TRNS\tCHECK\t01/05/2026\tTD Chequing\t-10.00\tSynthetic debit\tN",
+            "SPL\tCHECK\t01/05/2026\tClearing:Bank Imports\t10.00\tSynthetic debit\tN",
+            "ENDTRNS",
+            "TRNS\tDEPOSIT\t01/08/2026\tTD Chequing\t25.00\tSynthetic deposit\tN",
+            "SPL\tDEPOSIT\t01/08/2026\tClearing:Bank Imports\t-25.00\tSynthetic deposit\tN",
+            "ENDTRNS",
+        ])
+        self.assertTrue(result.endswith(b"\r\n"))
+
+    def test_iif_rejects_discrepancies_unsupported_currency_and_invalid_names(self):
+        frame, info = engine.extract_td_chequing_transactions(easyweb_printout())
+        with self.assertRaisesRegex(ValueError, "CAD TD EasyWeb"):
+            engine.generate_easyweb_iif(frame, dict(info, currency="USD"), "Bank", "Clearing")
+        with self.assertRaisesRegex(ValueError, "different account"):
+            engine.generate_easyweb_iif(frame, info, "Bank", "bank")
+        with self.assertRaisesRegex(ValueError, "printable ASCII"):
+            engine.generate_easyweb_iif(frame, info, "Bank\tOther", "Clearing")
+        frame.loc[0, "Debit"] += 0.01
+        with self.assertRaisesRegex(ValueError, "Reconcile"):
+            engine.generate_easyweb_iif(frame, info, "Bank", "Clearing")
+
+    def test_desktop_iif_download_requires_reconciliation_and_account_confirmation(self):
+        app = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
+        for valid in (True, False):
+            with self.subTest(reconciled=valid):
+                pdf = easyweb_printout(printed_debit="10.00" if valid else "10.01")
+                uploaded = SimpleNamespace(name="easyweb.pdf", file_id="easyweb", getvalue=lambda: pdf)
+                with patch("streamlit.file_uploader", return_value=uploaded):
+                    ui = AppTest.from_file(str(app)).run()
+                    next(button for button in ui.button if button.label == "Convert statement").click().run()
+                    self.assertFalse(ui.exception)
+                    if not valid:
+                        self.assertFalse(ui.get("download_button"))
+                        continue
+                    self.assertTrue(ui.get("download_button")[-1].proto.disabled)
+                    bank, clearing = ui.text_input
+                    bank.set_value("Bank")
+                    clearing.set_value("Clearing").run()
+                    self.assertTrue(ui.get("download_button")[-1].proto.disabled)
+                    next(box for box in ui.checkbox if "both QuickBooks accounts" in box.label).check().run()
+                    self.assertFalse(ui.exception)
+                    button = ui.get("download_button")[-1]
+                    self.assertEqual(button.label, "Download IIF for QuickBooks Desktop")
+                    self.assertFalse(button.proto.disabled)

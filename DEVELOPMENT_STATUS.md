@@ -43,13 +43,15 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Verified the dedicated TD Business Cash Back Visa parser and CSV output against a user-supplied PDF. Added support for TD EasyWeb account-activity printouts and verified CSV export against a user-supplied multi-page printout. EasyWeb reconciliation checks printed totals and running balances for the displayed period. Zero-dollar rows are checked but omitted from the CSV. The automated fixtures use synthetic data.
 
+- Added a QuickBooks Desktop IIF preview for reconciled CAD TD EasyWeb activity printouts. The IIF uses two existing QuickBooks account names supplied by the user and creates balanced cheque and deposit records with clearing offsets. Synthetic tests cover file contents, reconciliation gating, and the desktop download control. Actual IIF import into a QuickBooks Desktop test company remains pending. IIF repeat imports can duplicate entries.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. The user confirmed a synthetic RBC Business Chequing QBO import and repeat-import check. Other QBO mappings remain unverified in QuickBooks Desktop.
 
 | Institution | Account types routed to a dedicated parser | Fixture evidence in this branch | QuickBooks Desktop eligibility |
 | --- | --- | --- | --- |
-| TD Canada Trust | Business Chequing | Synthetic multi-page PDF, identical debits, printed totals and counts, and CSV generation | Pending a confirmed account mapping and printed ledger balance |
+| TD Canada Trust | Business Chequing | Synthetic multi-page statements and EasyWeb activity printouts with CSV and EasyWeb IIF generation | CAD EasyWeb IIF preview. QBO pending a confirmed account mapping and printed ledger balance. |
 | TD Canada Trust | Credit Card | Synthetic two-page PDF, identical charges, year rollover, printed totals, and CSV | Full printed card ID and closing balance |
 | RBC Royal Bank | Business Chequing | Synthetic PDF extraction, printed control extraction, CSV and QBO generation, and repeat-export FITIDs | Printed account, transit, and closing balance |
 | RBC Royal Bank | Credit Card | Synthetic Mastercard PDF, year rollover, payments, interest, fees, CSV and missing amount regression | Full printed card ID and closing balance |
@@ -90,7 +92,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **87 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows CI builds the executable, runs full TD CSV and RBC QBO downloads, checks the mismatch export gate, and tests updater rollback. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. The user subsequently confirmed that both the synthetic RBC QBO repeat-import check in QuickBooks Desktop and the synthetic TD CSV import check in QuickBooks Online passed. This closes the first release's sample import checks. Production statement mappings remain unverified.
+Test result on Linux with Python 3.12 was **90 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows CI builds the executable, runs full TD CSV and RBC QBO downloads, checks the mismatch export gate, and tests updater rollback. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. The user subsequently confirmed that both the synthetic RBC QBO repeat-import check in QuickBooks Desktop and the synthetic TD CSV import check in QuickBooks Online passed. This closes the first release's sample import checks. Production statement mappings remain unverified.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
