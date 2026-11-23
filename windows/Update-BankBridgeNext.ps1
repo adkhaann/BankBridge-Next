@@ -44,6 +44,51 @@ function Install-StagedPackage {
     }
 }
 
+function Install-WithRollingBackup {
+    param([string]$Install, [string]$Package)
+
+    $backup = Join-Path $Install '.bankbridge-previous'
+    $retired = $null
+    if (Test-Path -LiteralPath $backup) {
+        $existing = Get-Item -LiteralPath $backup -Force
+        $contents = @(Get-ChildItem -LiteralPath $backup -Force)
+        $marker = $contents | Where-Object Name -eq '.bankbridge-updater-backup'
+        $unexpected = $contents | Where-Object {
+            $_.Name -notin @('.bankbridge-updater-backup', 'BankBridgeNext.exe', '_internal', 'BankBridgeNext.build')
+        }
+        if (-not $existing.PSIsContainer -or ($existing.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+            -not $marker -or $marker.PSIsContainer -or $unexpected) {
+            throw "The rollback location contains files the updater does not manage: $backup"
+        }
+        $retired = Join-Path $Install ('.bankbridge-retired-' + [guid]::NewGuid().ToString('N'))
+        Move-Item -LiteralPath $backup -Destination $retired
+    }
+
+    try {
+        Install-StagedPackage -Install $Install -Package $Package -Backup $backup
+    } catch {
+        if ((Test-Path -LiteralPath $backup) -and -not @(Get-ChildItem -LiteralPath $backup -Force).Count) {
+            Remove-Item -LiteralPath $backup
+        }
+        if ($retired -and -not (Test-Path -LiteralPath $backup)) {
+            Move-Item -LiteralPath $retired -Destination $backup
+        } elseif ($retired) {
+            Write-Warning "An earlier rollback copy is still available in $retired."
+        }
+        throw
+    }
+
+    Set-Content -LiteralPath (Join-Path $backup '.bankbridge-updater-backup') -Value 'BankBridgeNext'
+    if ($retired) {
+        try {
+            Remove-Item -LiteralPath $retired -Recurse -Force
+        } catch {
+            Write-Warning "The update succeeded, but an earlier rollback copy could not be removed: $retired"
+        }
+    }
+    return $backup
+}
+
 function Update-BankBridgeNext {
     param([string]$Directory)
 
@@ -95,8 +140,7 @@ function Update-BankBridgeNext {
             throw 'BankBridgeNext opened during download. Close it and run the update again.'
         }
 
-        $backup = Join-Path $parent ((Split-Path -Leaf $install) + '.backup-' + [guid]::NewGuid().ToString('N'))
-        Install-StagedPackage -Install $install -Package $stage -Backup $backup
+        $backup = Install-WithRollingBackup -Install $install -Package $stage
         Write-Host "Update complete. Previous application files: $backup"
     } finally {
         $lock.Dispose()

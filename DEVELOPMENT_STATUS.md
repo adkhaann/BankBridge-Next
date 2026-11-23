@@ -35,7 +35,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Added synthetic coverage for the Simplii no-fee chequing statement-period header with full English month names and a spaced dash. A second synthetic fixture mirrors the supplied two-date table with Funds out, Funds in, and Balance Forward. Synthetic fixed-width and proportional-font fixtures, including irregular header spacing, reconcile against printed controls and test mismatched carry-forward balances. The actual Simplii PDF and its summary layout still require an end-to-end retry.
 
-- The portable Windows build includes an updater that uses GitHub CLI to fetch the latest passing development package. It validates the build marker, keeps the previous application files, and attempts automatic recovery if replacement fails. It preserves existing shortcuts and other files in the portable folder.
+- The portable Windows build includes an updater that uses GitHub CLI to fetch the latest passing development package. It validates the build marker, keeps one rollback copy inside the portable app folder, and attempts automatic recovery if replacement fails. Existing backup folders made by older updaters are outside its scope. It preserves existing shortcuts and other files in the portable folder.
 
 - Added release-candidate checks that run every dedicated route through desktop conversion, reconciliation, and download availability. Automated checks also cover QBO signs and stable IDs on repeat exports for four card writers and an overlapping RBC deposit transaction. Simplii validation is deferred from the first release candidate.
 

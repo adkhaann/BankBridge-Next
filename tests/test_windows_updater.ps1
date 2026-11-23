@@ -26,8 +26,7 @@ try {
     New-TestPackage -Directory $stage -Version new
     Set-Content -LiteralPath (Join-Path $install 'local-notes.txt') -Value local
 
-    $backup = Join-Path $root 'backup'
-    Install-StagedPackage -Install $install -Package $stage -Backup $backup
+    $backup = Install-WithRollingBackup -Install $install -Package $stage
     Assert-Package -Directory $install -Version new
     Assert-Package -Directory $backup -Version old
     if (-not (Test-Path -LiteralPath (Join-Path $install 'local-notes.txt'))) {
@@ -35,6 +34,15 @@ try {
     }
 
     New-TestPackage -Directory $stage -Version newer
+    $nextBackup = Install-WithRollingBackup -Install $install -Package $stage
+    if ($nextBackup -ne $backup) { throw 'The backup folder changed.' }
+    Assert-Package -Directory $install -Version newer
+    Assert-Package -Directory $backup -Version new
+    if (Get-ChildItem -LiteralPath $install -Filter '.bankbridge-retired-*' -Force) {
+        throw 'A superseded rollback folder was retained.'
+    }
+
+    New-TestPackage -Directory $stage -Version latest
     function Move-Item {
         param([string]$LiteralPath, [string]$Destination)
         if ($LiteralPath -eq (Join-Path $stage '_internal') -and $Destination -eq $install) {
@@ -44,14 +52,31 @@ try {
     }
     $failed = $false
     try {
-        Install-StagedPackage -Install $install -Package $stage -Backup (Join-Path $root 'rollback')
+        Install-WithRollingBackup -Install $install -Package $stage
     } catch {
         if ($_.Exception.Message -ne 'Simulated replacement failure.') { throw }
         $failed = $true
     }
     if (-not $failed) { throw 'The simulated failure should have been reported.' }
-    Assert-Package -Directory $install -Version new
-    Assert-Package -Directory $stage -Version newer
+    Assert-Package -Directory $install -Version newer
+    Assert-Package -Directory $stage -Version latest
+    Assert-Package -Directory $backup -Version new
+
+    $unrelated = Join-Path $backup 'unrelated.txt'
+    Set-Content -LiteralPath $unrelated -Value local
+    $failed = $false
+    try {
+        Install-WithRollingBackup -Install $install -Package $stage
+    } catch {
+        if ($_.Exception.Message -notlike '*does not manage*') { throw }
+        $failed = $true
+    }
+    if (-not $failed -or -not (Test-Path -LiteralPath $unrelated)) {
+        throw 'An unrecognized file in the backup was not protected.'
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $install 'local-notes.txt'))) {
+        throw 'Unrelated local file was lost.'
+    }
     Write-Host 'Windows updater replacement and rollback passed.'
 } finally {
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
