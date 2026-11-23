@@ -10,6 +10,9 @@ WHEN YOU ADD A NEW BANK TO app.py:
 """
 import html
 import os
+import re
+import sys
+from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
@@ -18,6 +21,15 @@ import streamlit as st
 import engine as eng
 
 APP_VERSION = "1.0"
+
+
+def installed_build_id():
+    entry = Path(sys.executable) if getattr(sys, "frozen", False) else Path(__file__)
+    try:
+        marker = entry.with_name("BankBridgeNext.build").read_text(encoding="ascii").strip()
+    except (OSError, UnicodeError):
+        return None
+    return marker[:7] if re.fullmatch(r"[0-9a-f]{40}", marker) else None
 
 # ---------------------------------------------------------------------------
 # Which extract_... function handles each (bank, account type)
@@ -251,11 +263,13 @@ _ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "bank
 st.set_page_config(page_title="BankBridgeNext", page_icon=_ICON if os.path.exists(_ICON) else "🌉", layout="wide",
                    initial_sidebar_state="collapsed")
 st.markdown(CSS, unsafe_allow_html=True)
+build_id = installed_build_id()
+build_label = f" · Build {build_id}" if build_id else ""
 html_block(
     f"""<div class="bb-appbar">
       <div class="bb-brand">{LOGO_SVG}
         <div><div class="bb-name">BankBridgeNext</div>
-        <div class="bb-tag">PDF bank &amp; credit-card statements → QuickBooks, reconciled</div></div>
+        <div class="bb-tag">PDF bank &amp; credit-card statements → QuickBooks, reconciled{build_label}</div></div>
       </div>
       <div class="bb-pill">🔒 Processed on this computer · nothing is uploaded</div>
     </div>""",

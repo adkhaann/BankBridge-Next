@@ -24,7 +24,7 @@ The portable package includes `Update-BankBridgeNext.cmd` and `Update-BankBridge
 
 1. Install [GitHub CLI](https://cli.github.com/) and run `gh auth login` once. Choose GitHub.com and follow the sign-in prompts.
 2. Close BankBridgeNext and double-click `Update-BankBridgeNext.cmd`. The updater downloads the latest passing Windows build from the development branch and replaces only the application files. Your desktop shortcut keeps its existing target.
-3. Open BankBridgeNext using the same shortcut. If you need to undo a successful update, close the app and restore `BankBridgeNext.exe`, `_internal`, and `BankBridgeNext.build` from the backup folder reported by the updater. Move the current copies aside before restoring.
+3. Open BankBridgeNext using the same shortcut. The header shows the seven-character build ID from the installed package. If you need to undo a successful update, close the app and restore `BankBridgeNext.exe`, `_internal`, and `BankBridgeNext.build` from the backup folder reported by the updater. Move the current copies aside before restoring.
 
 The updater is for the extracted portable app. A source checkout continues to update through Git.
 

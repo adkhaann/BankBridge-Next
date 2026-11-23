@@ -39,6 +39,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Added release-candidate checks that run every dedicated route through desktop conversion, reconciliation, and download availability. Automated checks also cover QBO signs and stable IDs on repeat exports for four card writers and an overlapping RBC deposit transaction. Simplii validation is deferred from the first release candidate.
 
+- The desktop header displays the installed build ID from the same package marker used by the updater. This makes it possible to confirm which copy a shortcut opened.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. QuickBooks Desktop import verification remains pending for all rows.
@@ -86,7 +88,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **77 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. The Windows CI smoke test covers executable build and local server startup. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. Recording, repeat-import behavior, and production statement mappings remain unverified.
+Test result on Linux with Python 3.12 was **78 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. The Windows CI smoke test covers executable build and local server startup. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. Recording, repeat-import behavior, and production statement mappings remain unverified.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
