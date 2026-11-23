@@ -54,7 +54,7 @@ class TdEasyWebTests(unittest.TestCase):
 
     def test_iif_writes_balanced_entries_without_account_or_payee_creation(self):
         frame, info = engine.extract_td_chequing_transactions(easyweb_printout())
-        result = engine.generate_easyweb_iif(frame, info, "TD Chequing", "Clearing:Bank Imports")
+        result = engine.generate_statement_iif(frame, info, "TD Chequing", "Clearing:Bank Imports")
         self.assertEqual(result.decode("ascii").splitlines(), [
             "!TRNS\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tMEMO\tCLEAR",
             "!SPL\tTRNSTYPE\tDATE\tACCNT\tAMOUNT\tMEMO\tCLEAR",
@@ -70,15 +70,15 @@ class TdEasyWebTests(unittest.TestCase):
 
     def test_iif_rejects_discrepancies_unsupported_currency_and_invalid_names(self):
         frame, info = engine.extract_td_chequing_transactions(easyweb_printout())
-        with self.assertRaisesRegex(ValueError, "CAD TD EasyWeb"):
-            engine.generate_easyweb_iif(frame, dict(info, currency="USD"), "Bank", "Clearing")
+        with self.assertRaisesRegex(ValueError, "CAD statements"):
+            engine.generate_statement_iif(frame, dict(info, currency="USD"), "Bank", "Clearing")
         with self.assertRaisesRegex(ValueError, "different account"):
-            engine.generate_easyweb_iif(frame, info, "Bank", "bank")
+            engine.generate_statement_iif(frame, info, "Bank", "bank")
         with self.assertRaisesRegex(ValueError, "printable ASCII"):
-            engine.generate_easyweb_iif(frame, info, "Bank\tOther", "Clearing")
+            engine.generate_statement_iif(frame, info, "Bank\tOther", "Clearing")
         frame.loc[0, "Debit"] += 0.01
         with self.assertRaisesRegex(ValueError, "Reconcile"):
-            engine.generate_easyweb_iif(frame, info, "Bank", "Clearing")
+            engine.generate_statement_iif(frame, info, "Bank", "Clearing")
 
     def test_desktop_iif_download_requires_reconciliation_and_account_confirmation(self):
         app = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"

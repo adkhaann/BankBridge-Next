@@ -51,15 +51,10 @@ def reconcile(df, info):
     credit_total = round(float(df["Credit"].sum()), 2)
     debit_count = int((df["Debit"] > 0).sum())
     credit_count = int((df["Credit"] > 0).sum())
-    rows, details, ok = [], [], False
-
-    if info.get("universal"):
-        rows, ok = eng.reconcile_universal_transactions(df, info)
-    elif info["statement_type"] == "chequing":
-        rows, ok = eng.reconcile_dedicated_deposit(df, info)
-    else:
+    rows, ok = eng.reconcile_statement(df, info)
+    details = []
+    if not info.get("universal") and info["statement_type"] == "credit_card":
         s = info.get("summary", {})
-        rows, ok = eng.reconcile_credit_card(df, info)
         details = [
             ("Previous balance", s.get("previous_balance")),
             ("Purchases & charges (calculated)" if s.get("purchases_derived") else "Purchases & charges",
@@ -484,33 +479,40 @@ else:
                         if qbo_note:
                             st.caption(qbo_note)
 
-                if info.get("td_easyweb") and info.get("currency") in (None, "CAD"):
-                    with st.expander("QuickBooks Desktop IIF (preview)"):
-                        st.info("IIF posts directly to your QuickBooks registers. "
-                                "Import into a test company first and check for duplicates before importing.")
-                        st.caption(
-                            f"{rec['count']} transactions · {money(rec['debit_total'])} out · "
-                            f"{money(rec['credit_total'])} in. Use the full names of two existing "
-                            "QuickBooks accounts, including any parent accounts."
-                        )
-                        iif_key = f"bb_iif_{ss['bb_run']}"
-                        bank_account = st.text_input("QuickBooks bank account", key=f"{iif_key}_bank")
-                        clearing_account = st.text_input("QuickBooks clearing account", key=f"{iif_key}_clearing")
-                        confirmed = st.checkbox(
-                            "I confirmed the statement and both QuickBooks accounts use CAD.",
-                            key=f"{iif_key}_confirm",
-                        )
-                        iif_data = None
-                        if bank_account.strip() and clearing_account.strip() and confirmed:
-                            try:
-                                iif_data = eng.generate_easyweb_iif(edited, info, bank_account, clearing_account)
-                            except ValueError as error:
-                                st.warning(str(error))
-                        st.download_button(
-                            "Download IIF for QuickBooks Desktop", data=iif_data or b"",
-                            file_name=f"{stem}.iif", mime="application/octet-stream",
-                            disabled=iif_data is None, width="stretch",
-                        )
+            with st.expander("QuickBooks Desktop IIF"):
+                if not rec["ok"] or info.get("currency") not in (None, "CAD"):
+                    reason = ("Reconcile the statement to enable IIF."
+                              if not rec["ok"] else "IIF currently supports CAD statements.")
+                    st.caption(reason)
+                    st.button("Download IIF for QuickBooks Desktop", disabled=True, width="stretch")
+                else:
+                    st.info("IIF posts directly to your QuickBooks registers. "
+                            "Import into a test company first and check for duplicates before importing.")
+                    st.caption(
+                        f"{rec['count']} transactions · {money(rec['debit_total'])} debits · "
+                        f"{money(rec['credit_total'])} credits. Use the full names of two existing "
+                        "QuickBooks accounts, including any parent accounts."
+                    )
+                    iif_key = f"bb_iif_{ss['bb_run']}"
+                    register_label = ("QuickBooks credit card account" if info["statement_type"] == "credit_card"
+                                      else "QuickBooks bank account")
+                    register_account = st.text_input(register_label, key=f"{iif_key}_register")
+                    clearing_account = st.text_input("QuickBooks clearing account", key=f"{iif_key}_clearing")
+                    confirmed = st.checkbox(
+                        "I confirmed the statement and both QuickBooks accounts use CAD.",
+                        key=f"{iif_key}_confirm",
+                    )
+                    iif_data = None
+                    if register_account.strip() and clearing_account.strip() and confirmed:
+                        try:
+                            iif_data = eng.generate_statement_iif(edited, info, register_account, clearing_account)
+                        except ValueError as error:
+                            st.warning(str(error))
+                    st.download_button(
+                        "Download IIF for QuickBooks Desktop", data=iif_data or b"",
+                        file_name=f"{stem}.iif", mime="application/octet-stream",
+                        disabled=iif_data is None, width="stretch",
+                    )
 
 st.markdown(f'<div class="bb-footer">BankBridge {APP_VERSION} · Tax Square Professional Corporation</div>',
             unsafe_allow_html=True)

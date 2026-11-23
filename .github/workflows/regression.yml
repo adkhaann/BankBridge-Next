@@ -73,12 +73,14 @@ jobs:
           from test_rbc_deposit import rbc_statement
           from test_td_deposit import td_statement
           from test_td_easyweb import easyweb_printout
+          from test_universal_card import card_statement
 
           samples = Path("dist/BankBridgeNext/samples")
           samples.mkdir()
           (samples / "Synthetic-TD-Business-Chequing.pdf").write_bytes(td_statement())
           (samples / "Synthetic-RBC-Business-Chequing.pdf").write_bytes(rbc_statement())
           (samples / "Synthetic-TD-EasyWeb.pdf").write_bytes(easyweb_printout())
+          (samples / "Synthetic-Credit-Card.pdf").write_bytes(card_statement())
       - name: Upload Windows development package
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v6

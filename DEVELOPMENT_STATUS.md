@@ -43,15 +43,15 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Verified the dedicated TD Business Cash Back Visa parser and CSV output against a user-supplied PDF. Added support for TD EasyWeb account-activity printouts and verified CSV export against a user-supplied multi-page printout. EasyWeb reconciliation checks printed totals and running balances for the displayed period. Zero-dollar rows are checked but omitted from the CSV. The automated fixtures use synthetic data.
 
-- Added a QuickBooks Desktop IIF preview for reconciled CAD TD EasyWeb activity printouts. The IIF uses two existing QuickBooks account names supplied by the user and creates balanced cheque and deposit records with clearing offsets. Synthetic tests cover file contents, reconciliation gating, and the desktop download control. Actual IIF import into a QuickBooks Desktop test company remains pending. IIF repeat imports can duplicate entries.
+- Made QuickBooks Desktop IIF a standard export for reconciled CAD bank and card statements on both dedicated and experimental routes. Bank rows generate cheques and deposits. Card rows generate balanced journal entries against the existing clearing account. IIF uses QuickBooks account names and remains available alongside the existing CSV and eligible QBO exports. Synthetic tests verify both categories. Actual QuickBooks Desktop IIF imports remain pending. Repeat or overlapping imports can duplicate entries.
 
 ## Dedicated layout compatibility
 
-“Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. The user confirmed a synthetic RBC Business Chequing QBO import and repeat-import check. Other QBO mappings remain unverified in QuickBooks Desktop.
+“Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. The user confirmed a synthetic RBC Business Chequing QBO import and repeat-import check. Other QBO mappings remain unverified in QuickBooks Desktop. IIF can be generated for every reconciled CAD deposit or card layout shown below, including experimental layouts.
 
 | Institution | Account types routed to a dedicated parser | Fixture evidence in this branch | QuickBooks Desktop eligibility |
 | --- | --- | --- | --- |
-| TD Canada Trust | Business Chequing | Synthetic multi-page statements and EasyWeb activity printouts with CSV and EasyWeb IIF generation | CAD EasyWeb IIF preview. QBO pending a confirmed account mapping and printed ledger balance. |
+| TD Canada Trust | Business Chequing | Synthetic multi-page statements and EasyWeb activity printouts with CSV and EasyWeb IIF generation | QBO pending a confirmed account mapping and printed ledger balance. |
 | TD Canada Trust | Credit Card | Synthetic two-page PDF, identical charges, year rollover, printed totals, and CSV | Full printed card ID and closing balance |
 | RBC Royal Bank | Business Chequing | Synthetic PDF extraction, printed control extraction, CSV and QBO generation, and repeat-export FITIDs | Printed account, transit, and closing balance |
 | RBC Royal Bank | Credit Card | Synthetic Mastercard PDF, year rollover, payments, interest, fees, CSV and missing amount regression | Full printed card ID and closing balance |

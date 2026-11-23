@@ -2349,22 +2349,37 @@ def extract_td_credit_card_transactions(
 # QUICKBOOKS ONLINE CSV
 # =========================================================
 
-def generate_easyweb_iif(frame, info, bank_account, clearing_account):
-    """Create a transaction-only IIF for a reconciled TD EasyWeb printout."""
-    if not info.get("td_easyweb") or info.get("currency") not in (None, "CAD"):
-        raise ValueError("IIF is available for CAD TD EasyWeb activity printouts.")
-    if not reconcile_dedicated_deposit(frame, info)[1]:
+def reconcile_statement(frame, info):
+    if info.get("universal"):
+        return reconcile_universal_transactions(frame, info)
+    if info["statement_type"] == "chequing":
+        return reconcile_dedicated_deposit(frame, info)
+    return reconcile_credit_card(frame, info)
+
+
+def generate_statement_iif(frame, info, register_account, clearing_account):
+    """Create a transaction-only IIF from reconciled deposit or card rows."""
+    statement_type = info.get("statement_type")
+    if statement_type not in ("chequing", "credit_card"):
+        raise ValueError("IIF requires a bank or credit card statement.")
+    if info.get("currency") not in (None, "CAD"):
+        raise ValueError("IIF currently supports CAD statements.")
+    if not reconcile_statement(frame, info)[1]:
         raise ValueError("Reconcile the statement before exporting IIF.")
 
-    bank_account = bank_account.strip()
+    register_account = register_account.strip()
     clearing_account = clearing_account.strip()
-    for name in (bank_account, clearing_account):
+    for name in (register_account, clearing_account):
         if not re.fullmatch(r'[ -!#-~]+', name):
             raise ValueError("Enter both QuickBooks account names using printable ASCII without double quotes.")
-    if bank_account.casefold() == clearing_account.casefold():
+    if register_account.casefold() == clearing_account.casefold():
         raise ValueError("Choose a different account for the clearing entry.")
 
-    columns = "TRNSTYPE\tDATE\tACCNT\tAMOUNT\tMEMO\tCLEAR"
+    is_card = statement_type == "credit_card"
+    columns = "TRNSTYPE\tDATE\tACCNT\tAMOUNT\tMEMO"
+    cleared_field = "" if is_card else "\tN"
+    if not is_card:
+        columns += "\tCLEAR"
     lines = [f"!TRNS\t{columns}", f"!SPL\t{columns}", "!ENDTRNS"]
     for number, row in enumerate(frame.itertuples(index=False), 1):
         date = datetime.strptime(row.Date, "%Y-%m-%d").strftime("%m/%d/%Y")
@@ -2372,10 +2387,13 @@ def generate_easyweb_iif(frame, info, bank_account, clearing_account):
         if not re.fullmatch(r"[ -~]+", memo):
             raise ValueError(f"Transaction {number} contains characters outside ASCII. Edit its description for IIF export.")
         amount = row.Credit - row.Debit
-        kind = "DEPOSIT" if amount > 0 else "CHECK"
+        if is_card:
+            kind = "GENERAL JOURNAL"
+        else:
+            kind = "DEPOSIT" if amount > 0 else "CHECK"
         lines.extend((
-            f"TRNS\t{kind}\t{date}\t{bank_account}\t{amount:.2f}\t{memo}\tN",
-            f"SPL\t{kind}\t{date}\t{clearing_account}\t{-amount:.2f}\t{memo}\tN",
+            f"TRNS\t{kind}\t{date}\t{register_account}\t{amount:.2f}\t{memo}{cleared_field}",
+            f"SPL\t{kind}\t{date}\t{clearing_account}\t{-amount:.2f}\t{memo}{cleared_field}",
             "ENDTRNS",
         ))
     return ("\r\n".join(lines) + "\r\n").encode("ascii")

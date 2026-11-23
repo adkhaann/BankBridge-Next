@@ -36,6 +36,13 @@ class UniversalCardTests(unittest.TestCase):
         self.assertIn("Synthetic purchase,-30.0", csv_data)
         self.assertIn("Synthetic payment,20.0", csv_data)
         self.assertIsNone(engine.make_qbo(frame, info, "Credit Card")[0])
+        lines = engine.generate_statement_iif(frame, info, "Visa", "Clearing").decode("ascii").splitlines()
+        self.assertEqual([line.split("\t")[:5] for line in lines if line.startswith(("TRNS\t", "SPL\t"))], [
+            ["TRNS", "GENERAL JOURNAL", "01/05/2026", "Visa", "-30.00"],
+            ["SPL", "GENERAL JOURNAL", "01/05/2026", "Clearing", "30.00"],
+            ["TRNS", "GENERAL JOURNAL", "01/08/2026", "Visa", "20.00"],
+            ["SPL", "GENERAL JOURNAL", "01/08/2026", "Clearing", "-20.00"],
+        ])
 
     def test_explicit_credit_column_accepts_accounting_signs_and_cr(self):
         for payment in ("-20.00", "(20.00)", "20.00 CR"):
@@ -49,6 +56,8 @@ class UniversalCardTests(unittest.TestCase):
     def test_mismatch_blocks_export(self):
         frame, info = engine.extract_universal_transactions(card_statement("110.01"), "Other", "Credit Card")
         self.assertFalse(engine.reconcile_universal_transactions(frame, info)[1])
+        with self.assertRaisesRegex(ValueError, "Reconcile"):
+            engine.generate_statement_iif(frame, info, "Visa", "Clearing")
 
     def test_desktop_fallback_works_for_an_issuer_with_a_dedicated_parser(self):
         pdf = SimpleNamespace(name="card.pdf", file_id="card-fallback", getvalue=card_statement)
@@ -59,4 +68,4 @@ class UniversalCardTests(unittest.TestCase):
             next(box for box in ui.checkbox if box.label == "Try experimental statement parser").check().run()
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertFalse(ui.exception)
-            self.assertEqual([button.label for button in ui.get("download_button")], ["Download CSV"])
+            self.assertEqual([button.label for button in ui.get("download_button")], ["Download CSV", "Download IIF for QuickBooks Desktop"])

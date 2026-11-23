@@ -13,6 +13,7 @@ from run_app import free_port, wait_until_ready
 from test_rbc_deposit import rbc_statement
 from test_td_deposit import td_statement
 from test_td_easyweb import easyweb_printout
+from test_universal_card import card_statement
 
 
 def convert_pdf(page, name, data):
@@ -53,14 +54,13 @@ def check_rbc_exports(page):
         raise RuntimeError("The RBC QBO did not retain two unique IDs across repeat downloads.")
 
 
-def check_iif_export(page):
-    convert_pdf(page, "Synthetic-TD-EasyWeb.pdf", easyweb_printout())
+def download_iif_postings(page, register_label, register_name):
     expect(page.get_by_text("✓ Reconciled", exact=True)).to_be_visible()
-    page.get_by_text("QuickBooks Desktop IIF (preview)", exact=True).click()
+    page.get_by_text("QuickBooks Desktop IIF", exact=True).click()
     button_name = "Download IIF for QuickBooks Desktop"
     expect(page.get_by_role("button", name=button_name)).to_be_disabled()
     for label, account in (
-        ("QuickBooks bank account", "TD Chequing"),
+        (register_label, register_name),
         ("QuickBooks clearing account", "Bank Imports Clearing"),
     ):
         field = page.get_by_role("textbox", name=label)
@@ -68,14 +68,31 @@ def check_iif_export(page):
         field.press("Enter")
     page.get_by_text("I confirmed the statement and both QuickBooks accounts use CAD.", exact=True).click()
     rows = download_path(page, button_name).read_text(encoding="ascii").splitlines()
-    actual = [line.split("\t")[1:5] for line in rows if line.startswith(("TRNS\t", "SPL\t"))]
-    if actual != [
+    return [line.split("\t")[1:5] for line in rows if line.startswith(("TRNS\t", "SPL\t"))]
+
+
+def check_iif_exports(page):
+    convert_pdf(page, "Synthetic-TD-EasyWeb.pdf", easyweb_printout())
+    if download_iif_postings(page, "QuickBooks bank account", "TD Chequing") != [
         ["CHECK", "01/05/2026", "TD Chequing", "-10.00"],
         ["CHECK", "01/05/2026", "Bank Imports Clearing", "10.00"],
         ["DEPOSIT", "01/08/2026", "TD Chequing", "25.00"],
         ["DEPOSIT", "01/08/2026", "Bank Imports Clearing", "-25.00"],
     ]:
         raise RuntimeError("The downloaded EasyWeb IIF did not contain the expected balanced postings.")
+
+    page.reload()
+    page.get_by_role("combobox", name="Account type", exact=True).click()
+    page.get_by_role("option", name="Credit Card", exact=True).click()
+    page.get_by_text("Try experimental statement parser", exact=True).click()
+    convert_pdf(page, "Synthetic-Credit-Card.pdf", card_statement())
+    if download_iif_postings(page, "QuickBooks credit card account", "Visa") != [
+        ["GENERAL JOURNAL", "01/05/2026", "Visa", "-30.00"],
+        ["GENERAL JOURNAL", "01/05/2026", "Bank Imports Clearing", "30.00"],
+        ["GENERAL JOURNAL", "01/08/2026", "Visa", "20.00"],
+        ["GENERAL JOURNAL", "01/08/2026", "Bank Imports Clearing", "-20.00"],
+    ]:
+        raise RuntimeError("The downloaded card IIF did not contain the expected balanced postings.")
 
 
 def check_dashboard(port, *, executable_path=None):
@@ -105,7 +122,7 @@ def check_dashboard(port, *, executable_path=None):
             iif_page = browser.new_page(accept_downloads=True)
             iif_page.set_default_timeout(30_000)
             iif_page.goto(f"http://127.0.0.1:{port}/")
-            check_iif_export(iif_page)
+            check_iif_exports(iif_page)
             rbc_page = browser.new_page(accept_downloads=True)
             rbc_page.set_default_timeout(30_000)
             rbc_page.goto(f"http://127.0.0.1:{port}/")

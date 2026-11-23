@@ -46,7 +46,15 @@ class ReleaseExportTests(unittest.TestCase):
                     self.assertFalse(ui.exception)
                     self.assertFalse(ui.error)
                     expected = ["Download CSV", "Download QBO"] if qbo else ["Download CSV"]
+                    expected.append("Download IIF for QuickBooks Desktop")
                     self.assertEqual([button.label for button in ui.get("download_button")], expected)
+                    self.assertTrue(ui.get("download_button")[-1].proto.disabled)
+                    label = "QuickBooks credit card account" if account_type == "Credit Card" else "QuickBooks bank account"
+                    next(field for field in ui.text_input if field.label == label).set_value("Statement Account")
+                    next(field for field in ui.text_input if field.label == "QuickBooks clearing account").set_value("Clearing")
+                    next(box for box in ui.checkbox if "both QuickBooks accounts" in box.label).check().run()
+                    self.assertFalse(ui.exception)
+                    self.assertFalse(ui.get("download_button")[-1].proto.disabled)
 
     def test_rbc_repeat_export_and_overlapping_transactions_keep_the_same_ids(self):
         frame, info = engine.extract_rbc_business_chequing_transactions(rbc_statement())
