@@ -173,3 +173,17 @@ class QboAccountIdentityTests(unittest.TestCase):
                 info = {"bank": bank, "statement_type": "chequing", "account_id": None}
                 self.assertIsNone(engine.make_qbo(self.frame, info, "Business Chequing")[0])
         self.assertIsNone(engine.make_qbo(self.frame, {"universal": True}, "Personal Savings")[0])
+
+
+class StatementSelectionTests(unittest.TestCase):
+    def test_detects_explicit_bank_and_account_type(self):
+        result = engine.detect_statement_selection(statement_pdf([
+            "Tangerine Bank", "Account type: Personal Savings",
+        ]))
+        self.assertEqual(result, {"bank": "Tangerine Bank", "account type": "Personal Savings"})
+
+    def test_does_not_guess_unknown_or_conflicting_selections(self):
+        result = engine.detect_statement_selection(statement_pdf([
+            "Synthetic Bank", "Account type: Personal Savings", "Account type: Business Savings",
+        ]))
+        self.assertEqual(result, {})

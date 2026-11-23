@@ -242,6 +242,22 @@ def step(n, title, subtitle=None, done=False):
     )
 
 
+def apply_detected_selection(pdf_bytes):
+    try:
+        detected = eng.detect_statement_selection(pdf_bytes)
+    except (ValueError, RuntimeError) as error:
+        st.session_state["bb_detection"] = f"Could not read statement details. {error}"
+        return
+    if "bank" in detected:
+        st.session_state["bb_bank"] = detected["bank"]
+    if "account type" in detected:
+        st.session_state["bb_type"] = detected["account type"]
+    st.session_state["bb_detection"] = (
+        "Review the detected selection. Choose any undetected details manually."
+        if detected else "Bank and account type could not be detected. Select the details manually."
+    )
+
+
 def file_stem(df, bank, account_type):
     short = {
         "TD Canada Trust": "TD", "RBC Royal Bank": "RBC", "BMO Bank of Montreal": "BMO",
@@ -306,6 +322,11 @@ with right:
         step(2, "Upload statement", "Select the PDF statement to convert.")
         uploaded = st.file_uploader("Statement PDF", type=["pdf"], key="bb_file",
                                     label_visibility="collapsed")
+        if uploaded is not None:
+            st.button("Detect bank and account type", on_click=apply_detected_selection,
+                      args=(uploaded.getvalue(),))
+            if ss.get("bb_detection"):
+                st.caption(ss["bb_detection"])
         go = st.button("Convert statement", type="primary", width="stretch",
                        disabled=(uploaded is None or extractor is None))
 

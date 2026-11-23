@@ -2772,6 +2772,32 @@ def universal_statement_date(value):
     raise ValueError(f"Unrecognized or ambiguous transaction date: {value!r}.")
 
 
+def detect_statement_selection(pdf_bytes):
+    """Recognize explicit metadata and early exact institution headings."""
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
+        if not len(document):
+            return {}
+        lines = [line.strip() for line in document[0].get_text(sort=True).splitlines() if line.strip()]
+    choices = {
+        "bank": {name.casefold(): name for name in CANADIAN_BANKS},
+        "account type": {name.casefold(): name for name in ACCOUNT_TYPES},
+    }
+    matches = {key: set() for key in choices}
+    for line in lines:
+        label, separator, value = line.partition(":")
+        category = label.strip().casefold()
+        if separator and category in choices:
+            match = choices[category].get(value.strip().casefold())
+            if match:
+                matches[category].add(match)
+    if not matches["bank"]:
+        for line in lines[:8]:
+            bank = choices["bank"].get(line.casefold())
+            if bank:
+                matches["bank"].add(bank)
+    return {key: next(iter(values)) for key, values in matches.items() if len(values) == 1}
+
+
 def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=False):
     """Read explicit deposit columns and independently printed statement controls."""
     if account_type not in UNIVERSAL_DEPOSIT_TYPES:
