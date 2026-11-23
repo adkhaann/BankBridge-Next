@@ -3341,6 +3341,9 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         ("date", "description", "amount"),
         ("date", "description", "montant"),
     }
+    secondary_date_headings = ("posting date", "posted date", "date de comptabilisation")
+    if not is_card:
+        secondary_date_headings += ("effective date", "date d'effet", "date d’effet")
     controls = {}
     rows = []
     running_balances = []
@@ -3423,13 +3426,13 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 headings = tuple(column.strip().lower() for column in columns)
                 running = headings[-1] in ("balance", "solde")
                 base_headings = headings[:-1] if running else headings
-                has_posting_date = is_card and base_headings[:2] in (
-                    ("transaction date", "posting date"),
-                    ("transaction date", "posted date"),
-                    ("date de transaction", "date de comptabilisation"),
+                transaction_date_heading = base_headings[:1] in (("transaction date",), ("date de transaction",))
+                has_posting_date = (
+                    transaction_date_heading and len(base_headings) > 1
+                    and base_headings[1] in secondary_date_headings
                 )
-                if has_posting_date:
-                    base_headings = ("date", *base_headings[2:])
+                if transaction_date_heading:
+                    base_headings = ("date", *base_headings[1 + has_posting_date:])
                 credit_first = base_headings in credit_first_headers
                 if credit_first or base_headings in debit_first_headers or base_headings in signed_headers:
                     current_layout = (len(base_headings), running, credit_first, has_posting_date)
@@ -3502,7 +3505,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         try:
             universal_transaction_date(posting_date, date_format, period)
         except ValueError as error:
-            raise ValueError(f"Invalid card posting date: {error}") from error
+            label = "card posting date" if is_card else "deposit posting or effective date"
+            raise ValueError(f"Invalid {label}: {error}") from error
     rows = [
         (universal_transaction_date(date, date_format, period), description, debit, credit)
         for date, description, debit, credit in rows

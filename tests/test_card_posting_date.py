@@ -46,3 +46,30 @@ class PostingDateTests(unittest.TestCase):
     def test_invalid_posting_date_blocks_extraction(self):
         with self.assertRaisesRegex(ValueError, "Invalid card posting date"):
             self.convert("2026-02-30")
+
+
+class DepositDateColumnTests(unittest.TestCase):
+    def convert(self, heading, secondary_date=None):
+        extra = f"{secondary_date}    " if secondary_date is not None else ""
+        pdf = statement_pdf([
+            "Opening balance: 100.00", "Closing balance: 90.00",
+            "Total debits: 10.00", "Total credits: 0.00",
+            f"{heading}    Description    Debit    Credit    Balance",
+            f"2026-01-05    {extra}Synthetic fee    10.00    -    90.00",
+        ])
+        return engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+
+    def test_one_date_or_two_explicit_dates_keep_the_transaction_date(self):
+        for heading, secondary in (
+            ("Transaction date", None),
+            ("Transaction date    Posting date", "2026-01-06"),
+            ("Date de transaction    Date d'effet", "2026-01-07"),
+        ):
+            with self.subTest(heading=heading):
+                frame, info = self.convert(heading, secondary)
+                self.assertEqual(frame["Date"].tolist(), ["2026-01-05"])
+                self.assertTrue(engine.reconcile_universal_transactions(frame, info)[1])
+
+    def test_invalid_effective_date_blocks_conversion(self):
+        with self.assertRaisesRegex(ValueError, "Invalid deposit posting or effective date"):
+            self.convert("Transaction date    Effective date", "2026-02-30")
