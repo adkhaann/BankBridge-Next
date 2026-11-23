@@ -21,7 +21,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 | TD Canada Trust | Credit Card | Parser availability | Full printed card ID and closing balance |
 | RBC Royal Bank | Business Chequing | Synthetic PDF extraction, printed control extraction, CSV and QBO generation, and repeat-export FITIDs | Printed account, transit, and closing balance |
 | RBC Royal Bank | Credit Card | Parser availability | Full printed card ID and closing balance |
-| BMO Bank of Montreal | Business Chequing | Parser availability | Pending a confirmed account mapping and printed ledger balance |
+| BMO Bank of Montreal | Business Chequing | Synthetic PDF, printed balances and item count, CSV generation, and failed reconciliation cases | Pending a confirmed account mapping and printed ledger balance |
 | BMO Bank of Montreal | Credit Card | Parser availability | Full printed card ID and closing balance |
 | Scotiabank | Business Chequing | Parser availability | Pending a confirmed account mapping and printed ledger balance |
 | CIBC | Personal Chequing, Business Chequing, Personal Savings, Business Savings | One synthetic deposit layout parses and reconciles. Coverage across products and statement variants still needs fixtures. | Printed transit/account ID and compatible CIBC deposit type |
@@ -57,7 +57,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **19 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
+Test result on Linux with Python 3.12 was **22 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
@@ -76,6 +76,8 @@ Test result on Linux with Python 3.12 was **19 passing tests** with local Tesser
 User involvement will be needed for redacted statement and genuine Web Connect samples, QuickBooks Desktop import testing, and local Windows validation. Synthetic fixtures and parser work can continue independently.
 
 ## GitHub commits
+
+The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation now checks printed balances and totals and uses the printed combined item count when available.
 
 | Commit | Change |
 | --- | --- |

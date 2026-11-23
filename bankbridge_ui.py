@@ -61,6 +61,8 @@ def reconcile(df, info):
 
     if info.get("universal"):
         rows, ok = eng.reconcile_universal_transactions(df, info)
+    elif info["statement_type"] == "chequing" and info.get("bank") == "BMO Bank of Montreal":
+        rows, ok = eng.reconcile_bmo_deposit(df, info)
     elif info["statement_type"] == "chequing":
         c = info.get("control", {})
         if c.get("debit_total") is not None:

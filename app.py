@@ -1179,20 +1179,34 @@ def extract_bmo_business_chequing_transactions(pdf_bytes):
         df["Debit"] = pd.to_numeric(df["Debit"], errors="coerce").fillna(0.0)
         df["Credit"] = pd.to_numeric(df["Credit"], errors="coerce").fillna(0.0)
 
-    controls = {
-        "debit_count": int((df["Debit"] > 0).sum()) if not df.empty else 0,
-        "credit_count": int((df["Credit"] > 0).sum()) if not df.empty else 0,
-        "debit_total": info["debit_total"],
-        "credit_total": info["credit_total"]
-    }
+    controls = {key: info.get(key) for key in (
+        "debit_count", "credit_count", "debit_total", "credit_total", "item_count"
+    )}
 
     return df, {
         "statement_type": "chequing",
         "bank": "BMO Bank of Montreal",
         "control": controls,
         "account_id": info["account_id"],
-        "ending_balance": info["closing_balance"]
+        "opening_balance": info["opening_balance"],
+        "ending_balance": info["closing_balance"],
     }
+
+
+def reconcile_bmo_deposit(frame, info):
+    control = info["control"]
+    printed = {
+        "opening": info.get("opening_balance"),
+        "closing": info.get("ending_balance"),
+        "debit": control.get("debit_total"),
+        "credit": control.get("credit_total"),
+    }
+    if any(value is None for value in printed.values()):
+        return [], False
+    if control.get("item_count") is not None:
+        printed["transaction_count"] = control["item_count"]
+    return reconcile_universal_transactions(frame, {"control": printed})
+
 
 
 def get_bmo_credit_card_summary(full_text):
@@ -3454,7 +3468,18 @@ if "transactions" in st.session_state:
         # CHEQUING RECONCILIATION
         # =================================================
 
-        if (
+        if statement_info.get("bank") == "BMO Bank of Montreal" and statement_info["statement_type"] == "chequing":
+            checks, reconciled = reconcile_bmo_deposit(edited_df, statement_info)
+            if checks:
+                st.table(pd.DataFrame(
+                    [(label, expected, actual) for label, expected, actual, _ in checks],
+                    columns=["Check", "Statement", "BankBridge"],
+                ))
+            if reconciled:
+                st.success("Statement reconciles.")
+            else:
+                st.error("Reconciliation requires matching printed debit and credit totals, opening and closing balances, and any printed item count.")
+        elif (
             statement_info[
                 "statement_type"
             ]
