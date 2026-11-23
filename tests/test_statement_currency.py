@@ -4,6 +4,7 @@ import fitz
 
 import engine
 from test_rbc_deposit import rbc_statement
+from test_conversion import statement_pdf
 
 
 def rbc_statement_with_currency(*declarations):
@@ -34,3 +35,25 @@ class StatementCurrencyTests(unittest.TestCase):
         self.assertIn("<CURDEF>CAD", qbo)
         with self.assertRaisesRegex(ValueError, "conflicting currencies"):
             parser(rbc_statement_with_currency("Currency: CAD", "Currency: USD"))
+
+    def test_written_currency_names_feed_export_checks_on_both_routes(self):
+        pdf = rbc_statement_with_currency("Account currency: US Dollars", "Currency: USD")
+        frame, info = engine.extract_rbc_business_chequing_transactions(pdf)
+        self.assertEqual(info["currency"], "USD")
+        self.assertIsNone(engine.make_qbo(frame, info, "Business Chequing")[0])
+
+        pdf = statement_pdf([
+            "Devise du compte : dollars canadiens",
+            "Opening balance: 100.00", "Closing balance: 90.00",
+            "Total debits: 10.00", "Total credits: 0.00",
+            "Date          Description         Debit    Credit",
+            "2026-01-05    Synthetic fee       10.00    -",
+        ])
+        frame, info = engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+        self.assertEqual(info["currency"], "CAD")
+        self.assertTrue(engine.reconcile_statement(frame, info)[1])
+
+    def test_currency_names_and_codes_can_conflict(self):
+        with self.assertRaisesRegex(ValueError, "conflicting currencies"):
+            engine.statement_currency("Currency:US Dollars\nDevise: CAD")
+        self.assertIsNone(engine.statement_currency("Transaction in US dollars"))

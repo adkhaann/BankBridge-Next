@@ -19,15 +19,33 @@ import hashlib
 from datetime import datetime
 
 
-STATEMENT_CURRENCY_PATTERN = r"(?:Currency|Devise)\s*:?\s*([A-Z]{3})"
+STATEMENT_CURRENCY_PATTERN = r"(?:Account currency|Currency|Devise du compte|Devise)(?:\s*:\s*|\s+)(.+)"
+
+
+STATEMENT_CURRENCY_NAMES = {
+    "canadian dollar": "CAD", "canadian dollars": "CAD",
+    "dollar canadien": "CAD", "dollars canadiens": "CAD",
+    "us dollar": "USD", "us dollars": "USD",
+    "u.s. dollar": "USD", "u.s. dollars": "USD",
+    "dollar américain": "USD", "dollars américains": "USD",
+    "euro": "EUR", "euros": "EUR",
+    "british pound": "GBP", "british pounds": "GBP",
+    "livre sterling": "GBP", "livres sterling": "GBP",
+}
+
+
+def printed_currency_code(line):
+    match = re.fullmatch(STATEMENT_CURRENCY_PATTERN, line.strip(), re.IGNORECASE)
+    if not match:
+        return None
+    value = " ".join(match.group(1).casefold().split())
+    if re.fullmatch(r"[a-z]{3}", value):
+        return value.upper()
+    return STATEMENT_CURRENCY_NAMES.get(value)
 
 
 def statement_currency(full_text):
-    codes = set()
-    for line in full_text.splitlines():
-        match = re.fullmatch(STATEMENT_CURRENCY_PATTERN, line.strip(), re.IGNORECASE)
-        if match:
-            codes.add(match.group(1).upper())
+    codes = {code for line in full_text.splitlines() if (code := printed_currency_code(line))}
     if len(codes) > 1:
         raise ValueError("The statement declares conflicting currencies.")
     return next(iter(codes), None)
@@ -3380,9 +3398,9 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
             last_transaction_line = None
             for line_number, raw_line in enumerate(lines):
                 line = raw_line.strip()
-                currency = re.fullmatch(STATEMENT_CURRENCY_PATTERN, line, re.IGNORECASE)
+                currency = printed_currency_code(line)
                 if currency:
-                    currencies.add(currency.group(1).upper())
+                    currencies.add(currency)
                     continue
                 label, separator, value = line.replace("’", "'").partition(":")
                 label = " ".join(label.split())
