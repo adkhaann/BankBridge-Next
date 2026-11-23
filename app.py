@@ -2707,56 +2707,96 @@ def cibc_bank_identifier(full_text):
 
 
 def extract_cibc_credit_card_transactions(pdf_bytes):
-    doc = fitz.open(stream=pdf_bytes, filetype='pdf')
-    text = doc[0].get_text('text')
-    if 'Your account at a glance' not in text or 'Visa' not in text:
-        raise ValueError('Not a supported CIBC Visa statement.')
-    date_match = re.search(r'Statement Date\s+([A-Za-z]+)\s+(\d{1,2}),\s+(20\d{2})', text)
-    card_match = re.search(r'Account number\s+(\d{4})\s+XXXX\s+XXXX\s+(\d{4})', text)
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+        if len(doc) < 2:
+            raise ValueError("CIBC credit-card transaction page missing.")
+        text = doc[0].get_text("text")
+        transaction_pages = [page.get_text("text") for page in doc if page.number > 0]
+
+    if "Your account at a glance" not in text or "Visa" not in text:
+        raise ValueError("Not a supported CIBC Visa statement.")
+    date_match = re.search(r"Statement Date\s+([A-Za-z]+)\s+(\d{1,2}),\s+(20\d{2})", text)
+    card_match = re.search(r"Account number\s+\d{4}\s+XXXX\s+XXXX\s+\d{4}", text)
     account_id = full_card_account_id(text)
     if not date_match or not (card_match or account_id):
-        raise ValueError('CIBC statement date or card number missing.')
-    year = int(date_match.group(3)); month = datetime.strptime(date_match.group(1), '%B').month
+        raise ValueError("CIBC statement date or card number missing.")
+    year = int(date_match.group(3))
+    month = datetime.strptime(date_match.group(1), "%B").month
+
     def summary_amount(label):
-        match = re.search(r'(?m)^'+re.escape(label)+r'\s*\n(?:[+\-=]\s*\n)?\s*([-]?[\$]?[\d,]+\.\d{2}\s*(?:CR)?)', text, re.I)
-        if not match: raise ValueError('CIBC credit-card summary missing: '+label)
-        return cibc_signed(match.group(1))
-    total_charges = summary_amount('Total charges')
-    total_credits = summary_amount('Total credits')
-    summary = {'previous_balance':summary_amount('Previous balance'),
-               'payments_credits':abs(total_credits), 'purchases_charges':total_charges,
-               'interest':0.0, 'fees':0.0, 'new_balance':summary_amount('Total balance')}
-    if len(doc)<2: raise ValueError('CIBC credit-card transaction page missing.')
-    lines=[v.strip() for v in doc[1].get_text('text').splitlines()]
-    section=None; tx=[]
-    date_re=re.compile(r'^[A-Z][a-z]{2}\s+\d{1,2}$')
-    money_re=re.compile(r'^-?\$?[\d,]+\.\d{2}$')
-    for i,line in enumerate(lines):
-        if line=='Your payments': section='payments'
-        elif line=='Your interest': section='interest'
-        elif line=='Your new charges and credits': section='charges'
-        elif line.startswith(('Total payments','Total interest this period','Total for ')):
-            section=None
-        if section not in ('payments','interest','charges') or not date_re.fullmatch(line):
-            continue
-        if i+3>=len(lines) or not re.match(r'^[A-Z][a-z]{2}\s+\d{1,2}\b', lines[i+1]):continue
-        posted=lines[i+1]
-        desc=re.sub(r'^[A-Z][a-z]{2}\s+\d{1,2}\s*','',posted).strip().lstrip('QÝ ').strip()
-        if not desc:desc=lines[i+2].lstrip('QÝ ').strip()
-        amounts=[(j, cibc_signed(lines[j])) for j in range(i+2,min(i+8,len(lines))) if money_re.fullmatch(lines[j])]
-        if not amounts:continue
-        amount=amounts[0][1]
-        if section=='interest' and abs(amount)<0.001:continue
-        debit=abs(amount) if section=='interest' or (section=='charges' and amount>0) else 0.0
-        credit=abs(amount) if section=='payments' or (section=='charges' and amount<0) else 0.0
-        tx.append({'Date':cibc_date(line,year,month),'Description':desc,
-                   'Debit':round(debit,2),'Credit':round(credit,2)})
-    doc.close()
-    df=pd.DataFrame(tx,columns=['Date','Description','Debit','Credit'])
-    if abs(df.Debit.sum()-total_charges)>0.011 or abs(df.Credit.sum()-total_credits)>0.011:
-        raise ValueError(f'CIBC CC transaction totals mismatch: debits {df.Debit.sum():.2f} vs {total_charges:.2f}; credits {df.Credit.sum():.2f} vs {total_credits:.2f}.')
-    return df,{'statement_type':'credit_card','bank':'CIBC','summary':summary,
-               'account_id':account_id}
+        match = re.search(
+            r"(?m)^" + re.escape(label) + r"\s*\n(?:[+\-=]\s*\n)?\s*(-?\$?[\d,]+\.\d{2}(?:[ \t]*CR)?)",
+            text, re.IGNORECASE,
+        )
+        if not match:
+            raise ValueError(f"CIBC credit-card summary missing: {label}.")
+        return cibc_signed(match.group(1).upper())
+
+    total_charges = summary_amount("Total charges")
+    total_credits = abs(summary_amount("Total credits"))
+    previous = summary_amount("Previous balance")
+    closing = summary_amount("Total balance")
+    if round(previous + total_charges - total_credits, 2) != closing:
+        raise ValueError("CIBC credit-card printed balance does not match the statement totals.")
+
+    headings = {
+        "Your payments": "payments",
+        "Your interest": "interest",
+        "Your new charges and credits": "charges",
+    }
+    totals = ("Total payments", "Total interest this period", "Total for ")
+    date_re = re.compile(r"[A-Z][a-z]{2}\s+\d{1,2}$")
+    posting_re = re.compile(r"^[A-Z][a-z]{2}\s+\d{1,2}\b")
+    money_re = re.compile(r"-?\$?[\d,]+\.\d{2}(?:\s*CR)?", re.IGNORECASE)
+    section = None
+    transactions = []
+    for page_text in transaction_pages:
+        lines = [line.strip() for line in page_text.splitlines() if line.strip()]
+        for i, line in enumerate(lines):
+            if line in headings:
+                section = headings[line]
+            elif line.startswith(totals):
+                section = None
+            if section is None or not date_re.fullmatch(line) or i + 2 >= len(lines):
+                continue
+            posting = posting_re.match(lines[i + 1])
+            if not posting:
+                continue
+            description = lines[i + 1][posting.end():].lstrip("QÝ ").strip()
+            for field in lines[i + 2:i + 8]:
+                if field in headings or field.startswith(totals) or posting_re.match(field):
+                    break
+                if money_re.fullmatch(field):
+                    amount = cibc_signed(field.upper())
+                    if amount and description:
+                        is_credit = section == "payments" or (section == "charges" and amount < 0)
+                        transactions.append({
+                            "Date": cibc_date(line, year, month),
+                            "Description": description,
+                            "Debit": 0.0 if is_credit else abs(amount),
+                            "Credit": abs(amount) if is_credit else 0.0,
+                        })
+                    break
+                if not description:
+                    description = field.lstrip("QÝ ").strip()
+
+    frame = pd.DataFrame(transactions, columns=["Date", "Description", "Debit", "Credit"])
+    debits, credits = round(frame.Debit.sum(), 2), round(frame.Credit.sum(), 2)
+    if (debits, credits) != (total_charges, total_credits):
+        raise ValueError(
+            f"CIBC credit-card transaction totals mismatch: debits {debits:.2f} vs {total_charges:.2f}; "
+            f"credits {credits:.2f} vs {total_credits:.2f}."
+        )
+    return frame, {
+        "statement_type": "credit_card",
+        "bank": "CIBC",
+        "summary": {
+            "previous_balance": previous, "payments_credits": total_credits,
+            "purchases_charges": total_charges, "interest": 0.0, "fees": 0.0,
+            "new_balance": closing,
+        },
+        "account_id": account_id,
+    }
 
 
 def extract_cibc_chequing_transactions(pdf_bytes):
