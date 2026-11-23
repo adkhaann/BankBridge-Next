@@ -3158,6 +3158,34 @@ def normalize_simplii_chequing_table(lines, page_number):
     return (normalized if header_ends else None), previous_balance
 
 
+def statement_running_balances_match(rows, opening, running_balances, *, is_card):
+    balance = opening
+    for (_, _, debit, credit), printed in zip(rows, running_balances):
+        balance += debit - credit if is_card else credit - debit
+        if balance != printed:
+            return False
+    return True
+
+
+def classify_signed_card_rows(rows, controls, running_balances):
+    reversed_rows = [(date, description, credit, debit) for date, description, debit, credit in rows]
+    matches = []
+    for candidate in (rows, reversed_rows):
+        charges = sum(debit for _, _, debit, _ in candidate)
+        credits = sum(credit for _, _, _, credit in candidate)
+        if (charges, credits) != (controls["debit"], controls["credit"]):
+            continue
+        if controls["opening"] + charges - credits != controls["closing"]:
+            continue
+        if statement_running_balances_match(candidate, controls["opening"], running_balances, is_card=True):
+            matches.append(candidate)
+    if not matches:
+        raise ValueError("The signed card amounts do not match the printed totals and balances.")
+    if len(matches) != 1:
+        raise ValueError("The signed card amounts are ambiguous. Both sign conventions match the printed controls.")
+    return matches[0]
+
+
 def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=False):
     """Read explicit transaction tables and independently printed statement controls."""
     is_card = account_type in CREDIT_CARD_SELECTIONS
@@ -3211,8 +3239,6 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         ("date", "description", "amount"),
         ("date", "description", "montant"),
     }
-    if is_card:
-        signed_headers.clear()
     controls = {}
     rows = []
     running_balances = []
@@ -3346,12 +3372,10 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         (universal_transaction_date(date, date_format, period), description, debit, credit)
         for date, description, debit, credit in rows
     ]
-    balance = controls["opening"]
-    for row, printed_balance in zip(rows, running_balances):
-        debit, credit = row[2:]
-        balance += debit - credit if is_card else credit - debit
-        if balance != printed_balance:
-            raise ValueError("A printed running balance differs from the calculated balance.")
+    if is_card and layout[0] == 3:
+        rows = classify_signed_card_rows(rows, controls, running_balances)
+    elif not statement_running_balances_match(rows, controls["opening"], running_balances, is_card=is_card):
+        raise ValueError("A printed running balance differs from the calculated balance.")
     frame = pd.DataFrame(rows, columns=["Date", "Description", "Debit", "Credit"])
     frame[["Debit", "Credit"]] = frame[["Debit", "Credit"]] / 100
     return frame, {

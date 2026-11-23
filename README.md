@@ -64,7 +64,7 @@ For a QuickBooks Online import check, use a test company, upload a CSV through *
 
 In the desktop app, choose **Other Canadian Bank / Credit Union** and select the account type. For a bank with a dedicated parser, select **Try experimental statement parser** to use the fallback on a different layout. Compatible statements can export CSV after reconciliation.
 
-The experimental card parser requires separate **Charges** and **Payments and credits** (or **Credits**) columns, plus printed previous and new balances, total charges, and total payments and credits. An unfamiliar layout can be inspected with the local PDF preview. QuickBooks Desktop QBO is available through supported dedicated mappings.
+The experimental card parser accepts separate **Charges** and **Payments and credits** (or **Credits**) columns, or one signed **Amount** column. It needs printed previous and new balances, total charges, and total payments and credits. A signed table can export only when exactly one sign convention matches the printed controls and any running balances. An unfamiliar layout can be inspected with the local PDF preview. QuickBooks Desktop QBO is available through supported dedicated mappings.
 
 ## Adding a new bank later
 1. Add the parser and its institution/account combination to DEDICATED_EXTRACTORS in app.py.
