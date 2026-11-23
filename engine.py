@@ -3188,14 +3188,14 @@ def render_statement_page(pdf_bytes, page_number):
         return page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False).tobytes("png")
 
 
-def signed_deposit_money_cents(value):
+def marked_amount_cents(value):
     marker = re.fullmatch(r"(.+?)\s*(DR|CR)", value.strip(), re.IGNORECASE)
     if not marker:
-        return universal_money_cents(value)
+        return None
     amount, direction = marker.groups()
     amount = amount.strip()
     if amount.startswith(("+", "-", "(")) or amount.endswith("-"):
-        raise ValueError("A deposit amount with DR or CR must not include a separate sign.")
+        raise ValueError("An amount with DR or CR must not include a separate sign.")
     cents = universal_money_cents(amount)
     return -cents if direction.upper() == "DR" else cents
 
@@ -3309,10 +3309,14 @@ def statement_running_balances_match(rows, opening, running_balances, *, is_card
     return True
 
 
-def classify_signed_card_rows(rows, controls, running_balances):
-    reversed_rows = [(date, description, credit, debit) for date, description, debit, credit in rows]
+def classify_signed_card_rows(rows, controls, running_balances, marked_rows):
+    reversed_rows = [
+        row if index in marked_rows else (row[0], row[1], row[3], row[2])
+        for index, row in enumerate(rows)
+    ]
+    candidates = (rows,) if reversed_rows == rows else (rows, reversed_rows)
     matches = []
-    for candidate in (rows, reversed_rows):
+    for candidate in candidates:
         charges = sum(debit for _, _, debit, _ in candidate)
         credits = sum(credit for _, _, _, credit in candidate)
         if (charges, credits) != (controls["debit"], controls["credit"]):
@@ -3333,7 +3337,6 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     is_card = account_type in CREDIT_CARD_SELECTIONS
     if not is_card and account_type not in UNIVERSAL_DEPOSIT_TYPES:
         raise ValueError("The experimental parser supports deposit and credit-card statements.")
-    signed_amount_parser = universal_money_cents if is_card else signed_deposit_money_cents
     labels = {
         "opening balance": "opening", "beginning balance": "opening",
         "closing balance": "closing", "ending balance": "closing",
@@ -3391,6 +3394,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     carried_balances = []
     source_pages = []
     posting_dates = []
+    marked_rows = set()
     layout = None
     currencies = set()
     printed_periods = []
@@ -3520,7 +3524,12 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 if has_posting_date:
                     posting_dates.append(columns[1])
                 if transaction_columns == 3:
-                    signed = signed_amount_parser(columns[amount_index])
+                    amount = columns[amount_index]
+                    signed = marked_amount_cents(amount)
+                    if signed is None:
+                        signed = universal_money_cents(amount)
+                    elif is_card:
+                        marked_rows.add(len(rows))
                     debit_cents, credit_cents = max(-signed, 0), max(signed, 0)
                 else:
                     amounts = columns[amount_index:amount_index + 2]
@@ -3561,7 +3570,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         for date, description, debit, credit in rows
     ]
     if is_card and layout[0] == 3:
-        rows = classify_signed_card_rows(rows, controls, running_balances)
+        rows = classify_signed_card_rows(rows, controls, running_balances, marked_rows)
     elif not statement_running_balances_match(rows, controls["opening"], running_balances, is_card=is_card):
         raise ValueError("A printed running balance differs from the calculated balance.")
     carried_checks = []

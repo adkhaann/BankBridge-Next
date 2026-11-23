@@ -43,3 +43,16 @@ class SignedCardTests(unittest.TestCase):
     def test_equal_totals_without_running_balances_are_ambiguous(self):
         with self.assertRaisesRegex(ValueError, "ambiguous"):
             self.convert("30.00", "-30.00", "30.00", "100.00")
+
+    def test_explicit_markers_fix_direction_even_when_totals_are_equal(self):
+        for charge, payment in (("30.00 DR", "30.00CR"), ("30.00 DR", "-30.00")):
+            with self.subTest(charge=charge, payment=payment):
+                frame, info = self.convert(charge, payment, "30.00", "100.00")
+                self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), [[30.0, 0.0], [0.0, 30.0]])
+                self.assertTrue(engine.reconcile_statement(frame, info)[1])
+
+    def test_conflicting_markers_stop_conversion(self):
+        with self.assertRaisesRegex(ValueError, "do not match"):
+            self.convert("30.00 CR", "20.00 DR")
+        with self.assertRaisesRegex(ValueError, "separate sign"):
+            self.convert("30.00 DR", "-20.00 CR")
