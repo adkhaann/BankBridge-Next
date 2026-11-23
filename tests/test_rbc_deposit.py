@@ -8,7 +8,7 @@ import fitz
 import engine
 
 
-def rbc_statement(account="987-6543"):
+def rbc_statement(account="987-6543", *, printed_debit="10.00"):
     with fitz.open() as document:
         page = document.new_page()
         page.insert_text((32, 40), "\n".join([
@@ -16,7 +16,7 @@ def rbc_statement(account="987-6543"):
             "January 1 to January 31, 2026",
             f"Account number: 12345 {account}",
             "Total deposits & credits (1) + 25.00",
-            "Total cheques & debits (1) - 10.00",
+            f"Total cheques & debits (1) - {printed_debit}",
             "Closing balance on January 31 = $115.00",
         ]), fontsize=10)
         for y, fields in (
