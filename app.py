@@ -1246,7 +1246,7 @@ def get_bmo_credit_card_summary(full_text):
         "previous_balance":
             r"Previous\s+total\s+balance[^\n\r]*?\$?\s*([\d,]+\.\d{2})",
         "payments_credits":
-            r"Payments\s+and\s+credits\s+\$?([\d,]+\.\d{2})",
+            r"Payments\s+and\s+credits\s+-?\$?([\d,]+\.\d{2})",
         "purchases_charges":
             r"Purchases\s+and\s+other\s+charges\s+\$?([\d,]+\.\d{2})",
         "interest":
@@ -1254,7 +1254,7 @@ def get_bmo_credit_card_summary(full_text):
         "fees":
             r"Fees\s+\$?([\d,]+\.\d{2})",
         "new_balance":
-            r"Total\s+balance\s+\$([\d,]+\.\d{2})"
+            r"(?m)^[ \t]*Total\s+balance\s+\$([\d,]+\.\d{2})"
     }
 
     for key, pattern in patterns.items():
@@ -1274,12 +1274,16 @@ def get_bmo_credit_card_summary(full_text):
             summary["previous_balance"] = clean_amount(m.group(1))
 
     year_match = re.search(
-        r"Statement\s+date\s+[A-Za-z]+\.\s+\d{1,2},\s+(20\d{2})",
+        r"Statement\s+date\s+([A-Za-z]{3})\.?\s+\d{1,2},\s+(20\d{2})",
         full_text,
         re.IGNORECASE
     )
     if year_match:
-        summary["statement_year"] = int(year_match.group(1))
+        summary["statement_year"] = int(year_match.group(2))
+        try:
+            summary["statement_month"] = datetime.strptime(year_match.group(1), "%b").month
+        except ValueError:
+            pass
 
     return summary
 
@@ -1322,11 +1326,13 @@ def extract_bmo_credit_card_transactions(pdf_bytes):
                 continue
 
             amount = None
-            for w in row:
+            for index, w in enumerate(row):
                 if w[0] >= 350:
                     cleaned = w[4].replace("$", "").replace(",", "").strip()
                     if re.fullmatch(r"-?\d+\.\d{2}", cleaned):
                         amount = float(cleaned)
+                        if index + 1 < len(row) and row[index + 1][4].upper() == "CR":
+                            amount = -abs(amount)
 
             if amount is None:
                 continue
@@ -1339,7 +1345,7 @@ def extract_bmo_credit_card_transactions(pdf_bytes):
 
             month = month_map[texts[0]]
             day = int(texts[1])
-            year = summary["statement_year"]
+            year = summary["statement_year"] - int(month > summary.get("statement_month", 12))
 
             date_obj = datetime(year, month, day)
 
