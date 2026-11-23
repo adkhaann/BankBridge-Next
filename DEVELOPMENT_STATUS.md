@@ -13,6 +13,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Unified credit-card reconciliation across the desktop and standalone interfaces. It compares currency totals to the cent, calculates closing balance from extracted transactions, and rejects invalid dates and rows with both a debit and a credit. When TD's purchases subtotal is unavailable, the existing balance-derived fallback is labeled in the review.
 
+- Applied transaction-row validation to dedicated deposit export gates. CIBC deposit exports also recheck the printed running balances after edits and reject a one-cent difference during extraction.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. QuickBooks Desktop import verification remains pending for all rows.
@@ -59,7 +61,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **36 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
+Test result on Linux with Python 3.12 was **39 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows packaging and imports in QuickBooks were not exercised.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
@@ -79,7 +81,7 @@ User involvement will be needed for redacted statement and genuine Web Connect s
 
 ## GitHub commits
 
-TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
+Shared credit-card reconciliation is in `e6fbd38`. TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
 
 | Commit | Change |
 | --- | --- |

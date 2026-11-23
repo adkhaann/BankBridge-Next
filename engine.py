@@ -1165,8 +1165,8 @@ def extract_bmo_business_chequing_transactions(pdf_bytes):
 
 def reconcile_dedicated_deposit(frame, info):
     """Compare extracted transactions with the statement's printed controls."""
-    if info.get("bank") == "BMO Bank of Montreal":
-        return reconcile_bmo_deposit(frame, info)
+    if info.get("bank") in ("BMO Bank of Montreal", "CIBC"):
+        return reconcile_deposit_balances(frame, info)
     control = info.get("control", {})
     rows = []
     for column, key, label in (
@@ -1178,10 +1178,13 @@ def reconcile_dedicated_deposit(frame, info):
             (f"{label} (count)", control.get(f"{key}_count"), int((amounts > 0).sum()), "n"),
             (f"{label} (total)", control.get(f"{key}_total"), round(float(amounts.sum()), 2), "$"),
         ])
-    return rows, bool(not frame.empty and all(expected == actual for _, expected, actual, _ in rows))
+    dates = pd.to_datetime(frame["Date"], format="%Y-%m-%d", errors="coerce")
+    return rows, bool(valid_transaction_rows(frame, dates) and all(
+        expected == actual for _, expected, actual, _ in rows
+    ))
 
 
-def reconcile_bmo_deposit(frame, info):
+def reconcile_deposit_balances(frame, info):
     control = info["control"]
     printed = {
         "opening": info.get("opening_balance"),
@@ -1193,7 +1196,9 @@ def reconcile_bmo_deposit(frame, info):
         return [], False
     if control.get("item_count") is not None:
         printed["transaction_count"] = control["item_count"]
-    return reconcile_universal_transactions(frame, {"control": printed})
+    return reconcile_universal_transactions(frame, {
+        "control": printed, "running_balances": info.get("running_balances", []),
+    })
 
 
 def get_bmo_credit_card_summary(full_text):
@@ -2703,7 +2708,7 @@ def extract_cibc_chequing_transactions(pdf_bytes):
     opening=ctl('Opening balance on');closing=ctl('Closing balance on')
     debit_total=ctl('Withdrawals');credit_total=ctl('Deposits')
     acct=cibc_bank_identifier(first)
-    transactions=[];previous=opening;date=None
+    transactions=[];running_balances=[];previous=opening;date=None
     money_re=re.compile(r'^-?\$?[\d,]+\.\d{2}$')
     date_re=re.compile(r'^[A-Z][a-z]{2}\s+\d{1,2}$')
     for page in doc:
@@ -2734,20 +2739,21 @@ def extract_cibc_chequing_transactions(pdf_bytes):
             if len(amounts)==2 and desc:
                 amount,running=amounts;amount=abs(amount)
                 delta=round(running-previous,2)
-                if abs(abs(delta)-amount)>0.011:
+                if abs(delta) != amount:
                     raise ValueError(f'CIBC running balance mismatch near {desc[0]}: {previous:.2f} to {running:.2f}, transaction {amount:.2f}')
                 transactions.append({'Date':date,'Description':' '.join(desc),
                                      'Debit':amount if delta<0 else 0.0,'Credit':amount if delta>0 else 0.0})
+                running_balances.append(running)
                 previous=running;i=j
             else:i+=1
     doc.close()
     df=pd.DataFrame(transactions,columns=['Date','Description','Debit','Credit'])
-    if abs(previous-closing)>0.011 or abs(df.Debit.sum()-debit_total)>0.011 or abs(df.Credit.sum()-credit_total)>0.011:
+    if (previous, round(df.Debit.sum(), 2), round(df.Credit.sum(), 2)) != (closing, debit_total, credit_total):
         raise ValueError(f'CIBC chequing/savings control mismatch: ending {previous:.2f}/{closing:.2f}; debits {df.Debit.sum():.2f}/{debit_total:.2f}; credits {df.Credit.sum():.2f}/{credit_total:.2f}')
     return df,{'statement_type':'chequing','bank':'CIBC',
-               'control':{'debit_count':int((df.Debit>0).sum()),'debit_total':debit_total,
-                          'credit_count':int((df.Credit>0).sum()),'credit_total':credit_total},
-               'account_id':acct,'ending_balance':closing,'qbo_verified':True}
+               'control':{'debit_total':debit_total,'credit_total':credit_total},
+               'account_id':acct,'opening_balance':opening,'ending_balance':closing,
+               'running_balances':running_balances,'qbo_verified':True}
 
 
 def generate_cibc_qbo(df, info, account_type):
