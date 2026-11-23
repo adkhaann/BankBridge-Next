@@ -38,6 +38,9 @@ def check_rbc_exports(page):
     expect(page.get_by_role("button", name="Download CSV", exact=True)).to_have_count(0)
     expect(page.get_by_role("button", name="Download QBO", exact=True)).to_have_count(0)
 
+    page.reload()
+    page.get_by_role("combobox", name="Bank", exact=True).click()
+    page.get_by_role("option", name="RBC Royal Bank", exact=True).click()
     convert_pdf(page, "Synthetic-RBC-Business-Chequing.pdf", rbc_statement())
     expect(page.get_by_text("✓ Reconciled", exact=True)).to_be_visible()
     first = download_path(page, "Download QBO").read_text(encoding="cp1252")
@@ -63,7 +66,7 @@ def check_iif_export(page):
         field = page.get_by_role("textbox", name=label)
         field.fill(account)
         field.press("Enter")
-    page.get_by_role("checkbox", name="I confirmed the statement and both QuickBooks accounts use CAD.").check()
+    page.get_by_text("I confirmed the statement and both QuickBooks accounts use CAD.", exact=True).click()
     rows = download_path(page, button_name).read_text(encoding="ascii").splitlines()
     actual = [line.split("\t")[1:5] for line in rows if line.startswith(("TRNS\t", "SPL\t"))]
     if actual != [
@@ -99,7 +102,10 @@ def check_dashboard(port, *, executable_path=None):
             ]
             if rows != expected:
                 raise RuntimeError(f"The synthetic CSV differed from the expected rows: {rows!r}.")
-            check_iif_export(page)
+            iif_page = browser.new_page(accept_downloads=True)
+            iif_page.set_default_timeout(30_000)
+            iif_page.goto(f"http://127.0.0.1:{port}/")
+            check_iif_export(iif_page)
             rbc_page = browser.new_page(accept_downloads=True)
             rbc_page.set_default_timeout(30_000)
             rbc_page.goto(f"http://127.0.0.1:{port}/")
