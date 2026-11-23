@@ -34,6 +34,12 @@ This is an unsigned development build. GitHub checks that the packaged app start
 
 The RBC statement and account identifiers in this test are synthetic. Import acceptance and repeat-import behavior are pending verification.
 
+### Convert a statement from another institution
+
+In the desktop app, choose **Other Canadian Bank / Credit Union** and select the account type. For a bank with a dedicated parser, select **Try experimental statement parser** to use the fallback on a different layout. Compatible statements can export CSV after reconciliation.
+
+The experimental card parser requires separate **Charges** and **Payments and credits** (or **Credits**) columns, plus printed previous and new balances, total charges, and total payments and credits. An unfamiliar layout can be inspected with the local PDF preview. QuickBooks Desktop QBO is available through supported dedicated mappings.
+
 ## Adding a new bank later
 1. Add the parser and its institution/account combination to DEDICATED_EXTRACTORS in app.py.
 2. If it has its own QBO generator, add a branch to make_qbo() in app.py.

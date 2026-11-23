@@ -2989,9 +2989,10 @@ def fill_blank_deposit_cell(line, columns, header_starts, has_running_balance):
 
 
 def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=False):
-    """Read explicit deposit tables and independently printed statement controls."""
-    if account_type not in UNIVERSAL_DEPOSIT_TYPES:
-        raise ValueError("The experimental parser supports deposit statements only.")
+    """Read explicit transaction tables and independently printed statement controls."""
+    is_card = account_type in CREDIT_CARD_SELECTIONS
+    if not is_card and account_type not in UNIVERSAL_DEPOSIT_TYPES:
+        raise ValueError("The experimental parser supports deposit and credit-card statements.")
     labels = {
         "opening balance": "opening", "beginning balance": "opening",
         "closing balance": "closing", "ending balance": "closing",
@@ -3013,6 +3014,24 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         ("date", "description", "débit", "crédit"),
         ("date", "description", "retraits", "dépôts"),
     }
+    if is_card:
+        labels = {
+            "previous balance": "opening", "opening balance": "opening",
+            "new balance": "closing", "closing balance": "closing",
+            "total charges": "debit", "total payments and credits": "credit",
+            "total payments & credits": "credit", "total credits": "credit",
+            "number of charges": "debit_count", "number of payments and credits": "credit_count",
+            "transaction count": "transaction_count", "number of transactions": "transaction_count",
+            "solde précédent": "opening", "nouveau solde": "closing",
+            "total des frais": "debit", "total des paiements et crédits": "credit",
+            "nombre de transactions": "transaction_count",
+        }
+        debit_first_headers = {
+            ("date", "description", "charges", "payments and credits"),
+            ("date", "description", "charges", "payments & credits"),
+            ("date", "description", "charges", "credits"),
+            ("date", "description", "frais", "paiements et crédits"),
+        }
     credit_first_headers = {
         (*heading[:2], heading[3], heading[2]) for heading in debit_first_headers
     }
@@ -3020,6 +3039,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         ("date", "description", "amount"),
         ("date", "description", "montant"),
     }
+    if is_card:
+        signed_headers.clear()
     controls = {}
     rows = []
     running_balances = []
@@ -3079,6 +3100,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                         recorded = int(value)
                     else:
                         recorded = universal_money_cents(value)
+                        if is_card and key == "credit":
+                            recorded = abs(recorded)
                     if key in controls and controls[key] != recorded:
                         raise ValueError(f"Conflicting printed {label.lower()}.")
                     controls[key] = recorded
@@ -3121,6 +3144,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 if has_running_balance:
                     running_balances.append(universal_money_cents(columns[-1]))
     if not rows or not {"opening", "closing", "debit", "credit"} <= controls.keys():
+        if is_card:
+            raise ValueError("Expected card transaction rows and printed previous balance, new balance, total charges and total credits.")
         raise ValueError("Expected transaction rows and printed opening balance, closing balance, total debits and total credits.")
     if len(currencies) > 1:
         raise ValueError("The statement declares conflicting currencies.")
@@ -3136,13 +3161,15 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     ]
     balance = controls["opening"]
     for row, printed_balance in zip(rows, running_balances):
-        balance += row[3] - row[2]
+        debit, credit = row[2:]
+        balance += debit - credit if is_card else credit - debit
         if balance != printed_balance:
             raise ValueError("A printed running balance differs from the calculated balance.")
     frame = pd.DataFrame(rows, columns=["Date", "Description", "Debit", "Credit"])
     frame[["Debit", "Credit"]] = frame[["Debit", "Credit"]] / 100
     return frame, {
-        "bank": bank, "account_type": account_type, "statement_type": "chequing",
+        "bank": bank, "account_type": account_type,
+        "statement_type": "credit_card" if is_card else "chequing",
         "currency": next(iter(currencies), None), "account_id": None, "universal": True,
         "control": {key: value if key.endswith("_count") else value / 100
                     for key, value in controls.items()},
@@ -3196,10 +3223,12 @@ def reconcile_universal_transactions(frame, info):
     credits = frame["Credit"]
     debit_total = round(float(debits.sum()), 2)
     credit_total = round(float(credits.sum()), 2)
-    calculated = round(control["opening"] + credit_total - debit_total, 2)
+    is_card = info.get("statement_type") == "credit_card"
+    changes = debits - credits if is_card else credits - debits
+    calculated = round(control["opening"] + float(changes.sum()), 2)
     rows = [
-        ("Total debits", control["debit"], debit_total, "$"),
-        ("Total credits", control["credit"], credit_total, "$"),
+        ("Total charges" if is_card else "Total debits", control["debit"], debit_total, "$"),
+        ("Payments & credits" if is_card else "Total credits", control["credit"], credit_total, "$"),
         ("Closing balance", control["closing"], calculated, "$"),
     ]
     for key, label, actual in (
@@ -3211,7 +3240,7 @@ def reconcile_universal_transactions(frame, info):
             rows.append((label, control[key], actual, "n"))
     balances = info.get("running_balances", [])
     if balances:
-        calculated_balances = (control["opening"] + (credits - debits).cumsum()).round(2)
+        calculated_balances = (control["opening"] + changes.cumsum()).round(2)
         matches = sum(expected == actual for expected, actual in zip(balances, calculated_balances))
         rows.append(("Running balances matched", len(balances), matches, "n"))
         rows.append(("Rows with printed balances", len(balances), len(frame), "n"))

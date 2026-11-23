@@ -31,6 +31,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Added a GitHub Actions regression job for pushes to `pdf-to-qbo` and pull requests targeting it. The Linux job installs Tesseract so OCR runs alongside the generated-engine and interface tests. A Windows job builds the PyInstaller package and checks that its executable serves the desktop app on loopback. After that check passes on a development branch push, GitHub retains the full Windows package as a downloadable artifact for 14 days. The package includes synthetic TD and RBC deposit statements used in regression tests. The README documents the expected results and the RBC QuickBooks Desktop import check.
 
+- Desktop experimental conversion now accepts explicit credit-card charge and payment/credit columns. It checks printed card totals and uses liability balance arithmetic. An unlisted issuer can use Other Canadian Bank / Credit Union with a credit card selection. A toggle enables this path for a bank with a dedicated parser. Experimental statements are eligible for CSV after reconciliation. QBO requires a confirmed institution and account mapping.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. QuickBooks Desktop import verification remains pending for all rows.
@@ -52,10 +54,10 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 | Institutions | Deposit layout | Other layouts |
 | --- | --- | --- |
 | TD Canada Trust, RBC Royal Bank, BMO Bank of Montreal, Scotiabank, CIBC | Experimental CSV for deposit combinations outside the dedicated routes | See the dedicated rows above |
-| National Bank of Canada, Desjardins, ATB Financial, Laurentian Bank of Canada, Canadian Western Bank, Manulife Bank, First Nations Bank of Canada | Experimental CSV | Catalog only |
-| Tangerine Bank, Simplii Financial, EQ Bank, Motusbank | Experimental CSV | Catalog only |
-| PC Financial, Wealthsimple, Home Trust | Experimental CSV | Catalog only |
-| Coast Capital Savings, Meridian Credit Union, Vancity, Servus Credit Union | Experimental CSV | Catalog only |
+| National Bank of Canada, Desjardins, ATB Financial, Laurentian Bank of Canada, Canadian Western Bank, Manulife Bank, First Nations Bank of Canada | Experimental CSV | Experimental credit-card CSV for compatible card layouts. Other account layouts remain catalog only. |
+| Tangerine Bank, Simplii Financial, EQ Bank, Motusbank | Experimental CSV | Experimental credit-card CSV for compatible card layouts. Other account layouts remain catalog only. |
+| PC Financial, Wealthsimple, Home Trust | Experimental CSV | Experimental credit-card CSV for compatible card layouts. Other account layouts remain catalog only. |
+| Coast Capital Savings, Meridian Credit Union, Vancity, Servus Credit Union | Experimental CSV | Experimental credit-card CSV for compatible card layouts. Other account layouts remain catalog only. |
 | Other Canadian Bank / Credit Union | Experimental CSV for unlisted institutions, including issuers and credit unions with compatible deposit layouts | Catalog only |
 
 Experimental coverage has synthetic evidence for a two-page USD deposit table and a rasterized scan of that layout. The evidence does not establish support for named institution layouts.
@@ -69,7 +71,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 | Personal Chequing, Business Chequing, Joint Chequing | Dedicated entries above plus experimental CSV |
 | Personal Savings, Business Savings, Joint Savings, High-Interest Savings, Cash Management Account | Dedicated entries above plus experimental CSV |
 | Credit Card | Dedicated entries above |
-| Personal Credit Card, Business Credit Card, Corporate Credit Card, Secured Credit Card | Routes to the existing dedicated TD, RBC, BMO, and CIBC parsers. Product-specific layouts require separate fixture evidence. |
+| Personal Credit Card, Business Credit Card, Corporate Credit Card, Secured Credit Card | Routes to the existing dedicated TD, RBC, BMO, and CIBC parsers. A desktop experimental path handles explicitly separated charges and payments/credits for any selected issuer. Product-specific layouts require separate fixture evidence. |
 | Prepaid Credit Card | Catalog only |
 | Line of Credit, Personal Line of Credit, Business Line of Credit, Home Equity Line of Credit (HELOC), Student Line of Credit | Catalog only |
 | Personal Loan, Business Loan, Vehicle Loan, Mortgage, Equipment Financing | Catalog only |
@@ -78,7 +80,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **65 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. The Windows CI smoke test covers executable build and local server startup. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The CSV download itself, shortcut behavior, and QuickBooks imports remain unverified.
+Test result on Linux with Python 3.12 was **68 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. The Windows CI smoke test covers executable build and local server startup. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. Recording, repeat-import behavior, and production statement mappings remain unverified.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
@@ -98,7 +100,7 @@ User involvement will be needed for redacted statement and genuine Web Connect s
 
 ## GitHub commits
 
-The bundled TD synthetic statement is in `3e5d1fb`. Downloadable Windows development packages are in `9b1c02b`. Windows packaging and local server smoke testing are in `ee39f66`. The GitHub Actions Linux regression job is in `a7e5d13` and `55b20c3`. The PDF preview after failed conversion is in `559b3e5`. The desktop PDF preview is in `4dbee33`. The original PDF page column is in `029a8a3`. Yearless transaction dates resolved against printed periods are in `c09e5df`. Accounting-style negative amounts are in `6e99448`. Credit-first experimental tables are in `d93b7da`. Aligned blank debit and credit cells are covered in `fd3a976`. Single signed amount tables are in `c47aa1a`. The foreign-currency QBO safeguard is in `a0656ca`. Stale review and download cleanup is in `92feb1f`. Dedicated credit card product routing is in `88beecc`. The Windows shortcut configuration fix is in `7d7d2eb`. Declared numeric date formats are in `7d81fb5`. French deposit extraction is in `733e270`. CIBC running-balance validation after edits is in `eb43087`. Shared credit-card reconciliation is in `e6fbd38`. TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
+The bundled RBC synthetic statement for Web Connect testing is in `e6b8d9c`. The bundled TD synthetic statement is in `3e5d1fb`. Downloadable Windows development packages are in `9b1c02b`. Windows packaging and local server smoke testing are in `ee39f66`. The GitHub Actions Linux regression job is in `a7e5d13` and `55b20c3`. The PDF preview after failed conversion is in `559b3e5`. The desktop PDF preview is in `4dbee33`. The original PDF page column is in `029a8a3`. Yearless transaction dates resolved against printed periods are in `c09e5df`. Accounting-style negative amounts are in `6e99448`. Credit-first experimental tables are in `d93b7da`. Aligned blank debit and credit cells are covered in `fd3a976`. Single signed amount tables are in `c47aa1a`. The foreign-currency QBO safeguard is in `a0656ca`. Stale review and download cleanup is in `92feb1f`. Dedicated credit card product routing is in `88beecc`. The Windows shortcut configuration fix is in `7d7d2eb`. Declared numeric date formats are in `7d81fb5`. French deposit extraction is in `733e270`. CIBC running-balance validation after edits is in `eb43087`. Shared credit-card reconciliation is in `e6fbd38`. TD credit-card duplicate-looking charges and statement year rollover are covered in `a47f34e`. BMO Mastercard balance, credit sign, and year rollover corrections are in `7f06287`. The RBC Mastercard amount-column regression is in `85200d1`. CIBC Visa continuation and credit reconciliation are in `4d5441b`. The Scotiabank deposit fixture and shared deposit reconciliation are in `230c85a`. The RBC and TD deposit fixtures are in `3d0300a` and `b7b3ae4`. BMO deposit reconciliation in `10d7a13` checks printed balances and totals and uses the printed combined item count when available.
 
 | Commit | Change |
 | --- | --- |

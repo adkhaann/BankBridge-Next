@@ -22,11 +22,11 @@ APP_VERSION = "1.0"
 # ---------------------------------------------------------------------------
 # Which extract_... function handles each (bank, account type)
 # ---------------------------------------------------------------------------
-def get_extractor(bank, account_type, *, use_ocr=False):
+def get_extractor(bank, account_type, *, use_ocr=False, use_fallback=False):
     dedicated = eng.get_dedicated_extractor(bank, account_type)
-    if dedicated:
+    if dedicated and not use_fallback:
         return dedicated
-    if account_type in eng.UNIVERSAL_DEPOSIT_TYPES:
+    if account_type in eng.UNIVERSAL_DEPOSIT_TYPES or account_type in eng.CREDIT_CARD_SELECTIONS:
         return lambda data: eng.extract_universal_transactions(data, bank, account_type, use_ocr=use_ocr)
     return None
 
@@ -277,11 +277,14 @@ with left:
             index=types.index("Business Chequing") if "Business Chequing" in types else 0,
             key="bb_type",
         )
-        universal = account_type in eng.UNIVERSAL_DEPOSIT_TYPES and eng.get_dedicated_extractor(bank, account_type) is None
+        dedicated = eng.get_dedicated_extractor(bank, account_type)
+        eligible = account_type in eng.UNIVERSAL_DEPOSIT_TYPES or account_type in eng.CREDIT_CARD_SELECTIONS
+        use_fallback = st.checkbox("Try experimental statement parser") if dedicated and eligible else False
+        universal = eligible and (dedicated is None or use_fallback)
         use_ocr = st.checkbox("Use local OCR for scanned pages", value=False) if universal else False
-        extractor = get_extractor(bank, account_type, use_ocr=use_ocr)
+        extractor = get_extractor(bank, account_type, use_ocr=use_ocr, use_fallback=use_fallback)
         if universal:
-            st.info("Experimental universal deposit parser. CSV only after reconciliation.")
+            st.info("Experimental parser. CSV available after reconciliation.")
         elif extractor:
             st.markdown(f'<span class="bb-badge ok">● Dedicated parser — {html.escape(bank)} · '
                         f'{html.escape(account_type)}</span>', unsafe_allow_html=True)
@@ -303,7 +306,7 @@ with right:
         go = st.button("Convert statement", type="primary", width="stretch",
                        disabled=(uploaded is None or extractor is None))
 
-current_input = (uploaded.file_id if uploaded else None, bank, account_type, use_ocr)
+current_input = (uploaded.file_id if uploaded else None, bank, account_type, universal, use_ocr)
 if ss.get("bb_input") != current_input or go:
     for key in ("bb_df", "bb_info", "bb_bank_done", "bb_type_done", "bb_file_done", "bb_error"):
         ss.pop(key, None)
