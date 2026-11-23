@@ -53,3 +53,11 @@ jobs:
         env:
           PYTHONPATH: .
         run: python tests/windows_package_smoke.py
+      - name: Upload Windows development package
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v6
+        with:
+          name: BankBridgeNext-Windows-x64
+          path: dist/BankBridgeNext/
+          if-no-files-found: error
+          retention-days: 14

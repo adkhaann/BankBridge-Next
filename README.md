@@ -10,6 +10,14 @@
 - BankBridge.bat      start BankBridge without the shortcut
 - 2_Build_EXE.bat     build dist\BankBridgeNext\BankBridgeNext.exe
 
+## Try the Windows development build
+
+1. Sign in to GitHub and open the latest successful [regression run for pdf-to-qbo](https://github.com/adkhaann/BankBridge-Next/actions/workflows/regression.yml?query=branch%3Apdf-to-qbo).
+2. Under **Artifacts**, download **BankBridgeNext-Windows-x64**. Artifacts are available for 14 days.
+3. Extract the entire ZIP into a folder and open `BankBridgeNext.exe`. Keep the companion files in the same folder.
+
+This is an unsigned development build. GitHub checks that the packaged app starts its local server. Desktop window, shortcut, and QuickBooks import testing require an interactive Windows session.
+
 ## Adding a new bank later
 1. Add the parser and its institution/account combination to DEDICATED_EXTRACTORS in app.py.
 2. If it has its own QBO generator, add a branch to make_qbo() in app.py.
