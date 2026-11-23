@@ -2952,11 +2952,14 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         "nombre de crédits": "credit_count", "nombre de dépôts": "credit_count",
         "nombre de transactions": "transaction_count",
     }
-    headers = {
+    debit_first_headers = {
         ("date", "description", "debit", "credit"),
         ("date", "description", "withdrawals", "deposits"),
         ("date", "description", "débit", "crédit"),
         ("date", "description", "retraits", "dépôts"),
+    }
+    credit_first_headers = {
+        (*heading[:2], heading[3], heading[2]) for heading in debit_first_headers
     }
     signed_headers = {
         ("date", "description", "amount"),
@@ -3028,8 +3031,9 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 headings = tuple(column.strip().lower() for column in columns)
                 running = headings[-1] in ("balance", "solde")
                 base_headings = headings[:-1] if running else headings
-                if base_headings in headers or base_headings in signed_headers:
-                    current_layout = (len(base_headings), running)
+                credit_first = base_headings in credit_first_headers
+                if credit_first or base_headings in debit_first_headers or base_headings in signed_headers:
+                    current_layout = (len(base_headings), running, credit_first)
                     if layout is not None and current_layout != layout:
                         raise ValueError("Transaction headings changed between pages.")
                     layout = current_layout
@@ -3039,7 +3043,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     continue
                 if layout is None:
                     raise ValueError(f"Missing transaction headings on page {page.number + 1}.")
-                transaction_columns, has_running_balance = layout
+                transaction_columns, has_running_balance, credit_first = layout
                 expected_columns = transaction_columns + has_running_balance
                 if (transaction_columns == 4 and len(columns) == expected_columns - 1
                         and header_starts is not None and "\t" not in raw_line):
@@ -3051,7 +3055,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     signed = universal_money_cents(columns[2])
                     debit_cents, credit_cents = max(-signed, 0), max(signed, 0)
                 else:
-                    debit, credit = columns[2:4]
+                    debit, credit = columns[2:4][::-1] if credit_first else columns[2:4]
                     debit_cents = 0 if debit in ("-", "—") else universal_money_cents(debit)
                     credit_cents = 0 if credit in ("-", "—") else universal_money_cents(credit)
                 if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
