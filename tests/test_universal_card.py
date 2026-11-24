@@ -69,3 +69,21 @@ class UniversalCardTests(unittest.TestCase):
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertFalse(ui.exception)
             self.assertEqual([button.label for button in ui.get("download_button")], ["Download CSV", "Download IIF for QuickBooks Desktop"])
+
+    def test_french_purchase_and_payment_columns_reconcile_independent_counts(self):
+        for charge_count in (1, 2):
+            with self.subTest(charge_count=charge_count):
+                pdf = statement_pdf([
+                    "Solde précédent : 100,00 $",
+                    "Nouveau solde : 110,00 $",
+                    "Total des achats et autres frais : 30,00 $",
+                    "Total des paiements et crédits : 20,00 $",
+                    f"Nombre d'achats et autres frais : {charge_count}",
+                    "Nombre de paiements et crédits : 1",
+                    "Date    Description    Achats et autres frais    Paiements et crédits    Solde",
+                    "5 janvier 2026    Achat synthétique    30,00 $    -    130,00 $",
+                    "8 janvier 2026    Paiement synthétique    -    20,00 $    110,00 $",
+                ])
+                frame, info = engine.extract_universal_transactions(pdf, "Other", "Credit Card")
+                self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), [[30.0, 0.0], [0.0, 20.0]])
+                self.assertEqual(engine.reconcile_statement(frame, info)[1], charge_count == 1)

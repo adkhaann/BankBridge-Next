@@ -3488,7 +3488,10 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
             "number of charges": "debit_count", "number of payments and credits": "credit_count",
             "transaction count": "transaction_count", "number of transactions": "transaction_count",
             "solde précédent": "opening", "nouveau solde": "closing",
-            "total des frais": "debit", "total des paiements et crédits": "credit",
+            "total des frais": "debit", "total des achats et autres frais": "debit",
+            "total des paiements et crédits": "credit",
+            "nombre d'achats et autres frais": "debit_count",
+            "nombre de paiements et crédits": "credit_count",
             "nombre de transactions": "transaction_count",
         }
         debit_first_headers = {
@@ -3496,6 +3499,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
             ("date", "description", "charges", "payments & credits"),
             ("date", "description", "charges", "credits"),
             ("date", "description", "frais", "paiements et crédits"),
+            ("date", "description", "achats et autres frais", "paiements et crédits"),
         }
     credit_first_headers = {
         (*heading[:2], heading[3], heading[2]) for heading in debit_first_headers
