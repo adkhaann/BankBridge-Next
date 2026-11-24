@@ -65,3 +65,7 @@ class SignedDepositFixtureTests(unittest.TestCase):
                     self.assertEqual(frame["Date"].tolist(), ["2026-01-05", "2026-01-08"])
                     self.assertEqual(info["source_pages"], [2, 1])
                     self.assertTrue(engine.reconcile_statement(frame, info)[1])
+
+    def test_invalid_amount_reports_its_pdf_page(self):
+        with self.assertRaisesRegex(ValueError, "Invalid transaction amount on PDF page 2"):
+            self.convert(second_amount="25.OO")

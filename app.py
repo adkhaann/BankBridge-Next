@@ -3776,32 +3776,41 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 date, description = columns[0], columns[description_index]
                 if has_posting_date:
                     posting_dates.append(columns[1])
-                if transaction_columns == 3:
-                    amount = columns[amount_index]
-                    signed = marked_amount_cents(amount, amount_currencies=amount_currencies)
-                    if signed is None:
-                        signed = universal_money_cents(amount, amount_currencies=amount_currencies)
-                    elif is_card:
-                        marked_rows.add(len(rows))
-                    debit_cents, credit_cents = max(-signed, 0), max(signed, 0)
-                else:
-                    amounts = columns[amount_index:amount_index + 2]
-                    debit, credit = amounts[::-1] if credit_first else amounts
-                    debit_cents = split_column_amount_cents(
-                        debit, debit=True, is_card=is_card, amount_currencies=amount_currencies,
-                    )
-                    credit_cents = split_column_amount_cents(
-                        credit, debit=False, is_card=is_card, amount_currencies=amount_currencies,
-                    )
+                field = "amount"
+                try:
+                    if transaction_columns == 3:
+                        amount = columns[amount_index]
+                        signed = marked_amount_cents(amount, amount_currencies=amount_currencies)
+                        if signed is None:
+                            signed = universal_money_cents(amount, amount_currencies=amount_currencies)
+                        elif is_card:
+                            marked_rows.add(len(rows))
+                        debit_cents, credit_cents = max(-signed, 0), max(signed, 0)
+                    else:
+                        amounts = columns[amount_index:amount_index + 2]
+                        debit, credit = amounts[::-1] if credit_first else amounts
+                        field = "debit"
+                        debit_cents = split_column_amount_cents(
+                            debit, debit=True, is_card=is_card, amount_currencies=amount_currencies,
+                        )
+                        field = "credit"
+                        credit_cents = split_column_amount_cents(
+                            credit, debit=False, is_card=is_card, amount_currencies=amount_currencies,
+                        )
+                except ValueError as error:
+                    raise ValueError(f"Invalid transaction {field} on PDF page {page.number + 1}. {error}") from error
                 if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
                     raise ValueError(f"Expected one positive debit or credit on page {page.number + 1}.")
                 rows.append((date, description, debit_cents, credit_cents))
                 last_transaction_line = line_number
                 source_pages.append(page.number + 1)
                 if has_running_balance:
-                    balance = printed_balance_cents(
-                        columns[-1], is_card=is_card, amount_currencies=amount_currencies,
-                    )
+                    try:
+                        balance = printed_balance_cents(
+                            columns[-1], is_card=is_card, amount_currencies=amount_currencies,
+                        )
+                    except ValueError as error:
+                        raise ValueError(f"Invalid running balance on PDF page {page.number + 1}. {error}") from error
                     running_balances.append(balance)
     if not rows or not {"opening", "closing", "debit", "credit"} <= controls.keys():
         if is_card:
