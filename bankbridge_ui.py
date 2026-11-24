@@ -206,7 +206,7 @@ def step(n, title, subtitle=None, done=False):
     )
 
 
-def show_statement_preview(uploaded, key, source_pages=None):
+def show_statement_preview(uploaded, key, source_pages=None, *, initial_page=None):
     if not st.checkbox("Preview original PDF", key=f"bb_preview_{key}"):
         return
     pdf_bytes = uploaded.getvalue()
@@ -215,7 +215,10 @@ def show_statement_preview(uploaded, key, source_pages=None):
         if not pages:
             st.warning("The uploaded PDF has no pages to display.")
             return
-        page_number = st.selectbox("PDF page to preview", pages, key=f"bb_preview_page_{key}")
+        default_index = pages.index(initial_page) if initial_page in pages else 0
+        page_number = st.selectbox(
+            "PDF page to preview", pages, index=default_index, key=f"bb_preview_page_{key}",
+        )
         image = eng.render_statement_page(pdf_bytes, page_number)
         st.image(image, caption=f"Original PDF · page {page_number}", width="stretch")
     except (RuntimeError, ValueError):
@@ -337,7 +340,10 @@ if ss.get("bb_error"):
     st.error(f"**We couldn't read this statement.** {ss['bb_error']}\n\n"
              "Check that the bank and account type match the PDF, then try again.")
     if uploaded is not None:
-        show_statement_preview(uploaded, "failed")
+        error_page = re.search(r"\bPDF page ([0-9]{1,6})\b", ss["bb_error"])
+        show_statement_preview(
+            uploaded, "failed", initial_page=int(error_page.group(1)) if error_page else None,
+        )
 
 
 if not has_results:

@@ -76,3 +76,23 @@ class SourcePageTests(unittest.TestCase):
             self.assertIn("page 2", preview.call_args.kwargs["caption"])
             self.assertFalse(ui.exception)
             self.assertFalse(ui.get("download_button"))
+
+    def test_failed_preview_starts_on_the_page_named_in_the_parser_error(self):
+        def invalid_amount_statement():
+            fixture = test_conversion.UniversalDepositTests
+            return test_conversion.statement_pdf(
+                fixture.first, [line.replace("25.00", "25.OO") for line in fixture.second],
+            )
+
+        uploaded = SimpleNamespace(name="invalid.pdf", file_id="invalid", getvalue=invalid_amount_statement)
+        app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
+        with patch("streamlit.file_uploader", return_value=uploaded), patch("streamlit.image") as preview:
+            ui = AppTest.from_file(str(app_path)).run()
+            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
+            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
+            next(button for button in ui.button if button.label == "Convert statement").click().run()
+            self.assertIn("PDF page 2", ui.error[0].value)
+            ui.checkbox(key="bb_preview_failed").check().run()
+            self.assertEqual(ui.selectbox(key="bb_preview_page_failed").value, 2)
+            self.assertIn("page 2", preview.call_args.kwargs["caption"])
+            self.assertFalse(ui.get("download_button"))
