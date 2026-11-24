@@ -114,3 +114,18 @@ class SourcePageTests(unittest.TestCase):
             with self.subTest(operation=operation):
                 with self.assertRaisesRegex(ValueError, "password-protected.*save an unlocked copy"):
                     operation(locked)
+
+    def test_empty_and_unreadable_pdfs_have_clear_recovery_instructions(self):
+        for data, error in (
+            (b"", "uploaded file is empty"),
+            (b"%PDF-1.7\ntruncated statement", "could not be opened as a PDF"),
+        ):
+            for operation in (
+                engine.detect_statement_selection,
+                engine.extract_td_chequing_transactions,
+                lambda pdf: engine.extract_universal_transactions(pdf, "Other", "Personal Savings"),
+                lambda pdf: engine.render_statement_page(pdf, 1),
+            ):
+                with self.subTest(data=data, operation=operation):
+                    with self.assertRaisesRegex(ValueError, error):
+                        operation(data)

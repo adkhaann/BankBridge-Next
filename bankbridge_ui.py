@@ -221,7 +221,9 @@ def show_statement_preview(uploaded, key, source_pages=None, *, initial_page=Non
         )
         image = eng.render_statement_page(pdf_bytes, page_number)
         st.image(image, caption=f"Original PDF · page {page_number}", width="stretch")
-    except (RuntimeError, ValueError):
+    except ValueError as error:
+        st.warning(str(error))
+    except RuntimeError:
         st.warning("The uploaded PDF page could not be displayed.")
 
 
