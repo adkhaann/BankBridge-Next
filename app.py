@@ -3645,9 +3645,15 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     elif key in ("opening", "closing"):
                         recorded = printed_balance_cents(value, is_card=is_card)
                     else:
-                        recorded = universal_money_cents(value)
-                        if is_card and key == "credit":
-                            recorded = abs(recorded)
+                        marked = marked_amount_cents(value)
+                        if marked is not None:
+                            if marked and (marked < 0) != (key == "debit"):
+                                raise ValueError(f"The DR or CR marker conflicts with the printed {label.lower()}.")
+                            recorded = abs(marked)
+                        else:
+                            recorded = universal_money_cents(value)
+                            if is_card and key == "credit":
+                                recorded = abs(recorded)
                     if key in controls and controls[key] != recorded:
                         raise ValueError(f"Conflicting printed {label.lower()}.")
                     controls[key] = recorded

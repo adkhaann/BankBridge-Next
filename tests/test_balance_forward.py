@@ -64,3 +64,25 @@ class BalanceForwardTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "printed balance forward on page 1"):
             self.convert(footer="Balance carried forward: 90.01")
+
+    def test_printed_totals_accept_only_matching_direction_markers(self):
+        for account, labels in (
+            ("Personal Savings", ("Total debits", "Total credits")),
+            ("Credit Card", ("Total charges", "Total payments and credits")),
+        ):
+            for debit_marker in ("DR", "CR"):
+                with self.subTest(account=account, debit_marker=debit_marker):
+                    card = account == "Credit Card"
+                    pdf = statement_pdf([
+                        "Opening balance: 100.00", f"Closing balance: {'85.00' if card else '115.00'}",
+                        f"{labels[0]}: 10.00 {debit_marker}", f"{labels[1]}: 25.00 CR",
+                        "Date          Description         Amount",
+                        "2026-01-05    Synthetic debit     10.00 DR",
+                        "2026-01-08    Synthetic credit    25.00 CR",
+                    ])
+                    if debit_marker == "DR":
+                        frame, info = engine.extract_universal_transactions(pdf, "Other", account)
+                        self.assertTrue(engine.reconcile_statement(frame, info)[1])
+                    else:
+                        with self.assertRaisesRegex(ValueError, "marker conflicts with the printed"):
+                            engine.extract_universal_transactions(pdf, "Other", account)
