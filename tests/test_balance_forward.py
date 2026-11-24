@@ -88,7 +88,7 @@ class BalanceForwardTests(unittest.TestCase):
                             engine.extract_universal_transactions(pdf, "Other", account)
 
     def test_standalone_page_labels_do_not_interrupt_reconciliation(self):
-        for header, footer in (("1 of 2", "Page 1 of 2"), ("1 sur 2", "Page 1 sur 2")):
+        for header, footer in (("1 of 2", "Page 1 of 2"), ("1 sur 2", "Page 1 sur 2"), ("Page 1/2", "Page 1 / 2")):
             with self.subTest(header=header, footer=footer):
                 frame, info = self.convert(footer=footer, page_label=header)
                 self.assertEqual(info["source_pages"], [1, 2])
@@ -98,7 +98,7 @@ class BalanceForwardTests(unittest.TestCase):
             self.convert(footer="2026-01-06    Synthetic fee")
 
     def test_inconsistent_printed_page_labels_block_conversion(self):
-        for label in ("Page 1 of 3", "2 sur 2", "0 of 2"):
+        for label in ("Page 1 of 3", "2 sur 2", "0 of 2", "Page 1/3"):
             with self.subTest(label=label):
                 with self.assertRaisesRegex(ValueError, "PDF page 1 of 2 is labeled"):
                     self.convert(page_label=label)

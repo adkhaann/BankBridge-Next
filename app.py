@@ -3642,7 +3642,9 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
             last_transaction_line = None
             for line_number, raw_line in enumerate(lines):
                 line = raw_line.strip()
-                page_label = re.fullmatch(r"(?:page\s+)?([0-9]+)\s+(?:of|sur)\s+([0-9]+)", line, re.IGNORECASE)
+                page_label = re.fullmatch(
+                    r"(?:page\s+)?([0-9]+)\s+(?:of|sur)\s+([0-9]+)", line, re.IGNORECASE,
+                ) or re.fullmatch(r"page\s+([0-9]+)\s*/\s*([0-9]+)", line, re.IGNORECASE)
                 if page_label:
                     printed_page, printed_total = map(int, page_label.groups())
                     if (printed_page, printed_total) != (page.number + 1, len(document)):

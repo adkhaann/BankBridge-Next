@@ -89,7 +89,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Experimental deposits and cards, including signed card tables, can reverse newest-first tables when the printed running balances confirm chronological order. This fallback requires descending dates with at least two distinct dates and a table without balance-forward checkpoints. Synthetic deposit and signed card fixtures verify source pages and rejection of a contradictory balance.
 
-- The experimental parser validates standalone English and French page labels such as 1 of 2 and 1 sur 2 against the PDF page count and order before skipping them. Synthetic fixtures cover headers and footers while retaining rejection of malformed transaction rows.
+- The experimental parser validates standalone English and French page labels such as 1 of 2, 1 sur 2, and Page 1/2 against the PDF page count and order before skipping them. Synthetic fixtures cover headers and footers while retaining rejection of malformed transaction rows.
 
 ## Dedicated layout compatibility
 
