@@ -450,6 +450,7 @@ else:
             with tab_rec:
                 body = ""
                 mismatch_page = None
+                running_mismatch_page = None
                 for label, stmt, ext, kind in rec["rows"]:
                     fmt = (lambda v: '<span class="bb-dim">—</span>' if v is None else f"{v:,}") \
                         if kind == "n" else money
@@ -459,10 +460,13 @@ else:
                         mark = '<span class="bb-ok">✓ Match</span>'
                     else:
                         mark = '<span class="bb-no">✕ Differs</span>'
-                    if mismatch_page is None and stmt != ext:
+                    if stmt is not None and ext is not None and stmt != ext:
                         checkpoint = re.fullmatch(r"Balance forward on page ([0-9]+)", label)
-                        if checkpoint:
+                        if checkpoint and mismatch_page is None:
                             mismatch_page = int(checkpoint.group(1))
+                        running = re.fullmatch(r"First running balance mismatch on page ([0-9]+)", label)
+                        if running and running_mismatch_page is None:
+                            running_mismatch_page = int(running.group(1))
                     body += (f"<tr><td>{label}</td><td class='num'>{fmt(stmt)}</td>"
                              f"<td class='num'>{fmt(ext)}</td><td>{mark}</td></tr>")
                 st.markdown(
@@ -470,19 +474,21 @@ else:
                     f"<th class='num'>BankBridge</th><th>Result</th></tr>{body}</table>",
                     unsafe_allow_html=True,
                 )
+                pages_by_number = {}
                 if control_pages := info.get("control_pages"):
-                    pages_by_number = {}
                     for label, pages in control_pages.items():
                         for page in pages:
                             pages_by_number.setdefault(page, []).append(label)
                     st.caption("Printed statement values by PDF page")
                     for page, labels in sorted(pages_by_number.items()):
                         st.caption(f"PDF page {page} · {', '.join(labels)}")
-                    if uploaded is not None:
-                        show_statement_preview(
-                            uploaded, f"controls_{ss['bb_run']}",
-                            initial_page=mismatch_page, printed_values=pages_by_number,
-                        )
+                if running_mismatch_page is not None:
+                    pages_by_number.setdefault(running_mismatch_page, []).append("running balance mismatch")
+                if uploaded is not None and pages_by_number:
+                    show_statement_preview(
+                        uploaded, f"controls_{ss['bb_run']}",
+                        initial_page=mismatch_page or running_mismatch_page, printed_values=pages_by_number,
+                    )
                 if rec["details"]:
                     st.write("")
                     st.caption("Statement summary")

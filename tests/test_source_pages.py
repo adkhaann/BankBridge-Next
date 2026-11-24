@@ -48,6 +48,13 @@ class SourcePageTests(unittest.TestCase):
                 self.assertTrue(image.startswith(b"\x89PNG\r\n\x1a\n"))
                 self.assertIn("page 2", preview.call_args.kwargs["caption"])
                 self.assertTrue(ui.get("download_button"))
+                ui.session_state["bb_editor_1"] = {
+                    "edited_rows": {1: {"Credit": 26.00}}, "added_rows": [], "deleted_rows": [],
+                }
+                ui.run()
+                self.assertFalse(ui.get("download_button"))
+                ui.checkbox(key="bb_preview_controls_1").check().run()
+                self.assertEqual(ui.selectbox(key="bb_preview_page_controls_1").value, 2)
 
     def test_page_preview_is_bounded_and_one_based(self):
         image = engine.render_statement_page(multi_page_statement(), 2)
