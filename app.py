@@ -3130,6 +3130,11 @@ UNIVERSAL_DATE_FORMATS = {
     "YYYY-MM-DD": "%Y-%m-%d",
     "AAAA/MM/JJ": "%Y/%m/%d",
     "AAAA-MM-JJ": "%Y-%m-%d",
+    "DD.MM.YYYY": "%d.%m.%Y",
+    "MM.DD.YYYY": "%m.%d.%Y",
+    "JJ.MM.AAAA": "%d.%m.%Y",
+    "YYYY.MM.DD": "%Y.%m.%d",
+    "AAAA.MM.JJ": "%Y.%m.%d",
 }
 
 
@@ -3176,7 +3181,7 @@ def universal_statement_date(value, declared_format=None):
 def universal_transaction_date(value, declared_format, period):
     day_first = re.fullmatch(r"(?:1er|\d{1,2})\s+[^\W\d_]+\.?", value, re.IGNORECASE)
     month_first = re.fullmatch(rf"{ENGLISH_STATEMENT_MONTH}\.?\s+\d{{1,2}}", value, re.IGNORECASE)
-    numeric = re.fullmatch(r"\d{1,2}([/-])\d{1,2}", value)
+    numeric = re.fullmatch(r"\d{1,2}([/.-])\d{1,2}", value)
     if not (day_first or month_first or numeric):
         return universal_statement_date(value, declared_format)
     if numeric:
