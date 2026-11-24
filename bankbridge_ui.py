@@ -340,7 +340,7 @@ if ss.get("bb_error"):
     st.error(f"**We couldn't read this statement.** {ss['bb_error']}\n\n"
              "Check that the bank and account type match the PDF, then try again.")
     if uploaded is not None:
-        error_page = re.search(r"\b(?:PDF page|on page) ([0-9]{1,6})\b", ss["bb_error"], re.IGNORECASE)
+        error_page = re.search(r"(?:\bPDF page|\bon page|^Page) ([0-9]{1,6})\b", ss["bb_error"], re.IGNORECASE)
         show_statement_preview(
             uploaded, "failed", initial_page=int(error_page.group(1)) if error_page else None,
         )

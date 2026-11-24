@@ -84,6 +84,7 @@ class SourcePageTests(unittest.TestCase):
             ([line.replace("25.00", "25.OO") for line in fixture.second], "PDF page 2"),
             (["2026-01-08    Synthetic credit"], "Unrecognized transaction columns on page 2"),
             (["Balance forward: 99.99", *fixture.second], "printed balance forward on page 2"),
+            ([], "Page 2 has no readable text"),
         ):
             with self.subTest(error=error):
                 pdf = test_conversion.statement_pdf(fixture.first, second)

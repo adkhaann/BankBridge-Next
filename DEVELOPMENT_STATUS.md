@@ -93,7 +93,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Experimental transaction amount errors identify the PDF page and whether the problem is in the amount, debit, credit, or running balance. Transaction and posting date errors also identify the PDF page. Invalid printed totals, counts, and balances identify both the field and page. Synthetic fixtures verify the diagnostics for invalid amounts and dates.
 
-- When a conversion error identifies a PDF page, the local preview opens on that page by default. The user can still navigate to any page. UI regression cases verify second-page amount, layout, and balance-forward errors and the export gate.
+- When a conversion error identifies a PDF page, the local preview opens on that page by default. The user can still navigate to any page. UI regression cases verify second-page amount, layout, balance-forward, and unreadable-page errors and the export gate.
 
 ## Dedicated layout compatibility
 
