@@ -133,6 +133,7 @@ class UniversalDepositTests(unittest.TestCase):
                     document.tobytes(), "Other", "Personal Savings", use_ocr=True
                 )
         self.assertEqual(frame["Description"].tolist(), ["Synthetic debit", "Synthetic credit"])
+        self.assertEqual(info["ocr_pages"], [1])
         self.assertTrue(engine.reconcile_universal_transactions(frame, info)[1])
 
 

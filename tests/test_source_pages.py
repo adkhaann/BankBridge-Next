@@ -160,7 +160,10 @@ class SourcePageTests(unittest.TestCase):
         extract = engine.extract_universal_transactions
 
         def simulated_ocr(data, bank, account_type, *, use_ocr=False):
-            return extract(multi_page_statement() if use_ocr else data, bank, account_type)
+            frame, info = extract(multi_page_statement() if use_ocr else data, bank, account_type)
+            if use_ocr:
+                info["ocr_pages"] = [2]
+            return frame, info
 
         with patch("streamlit.file_uploader", return_value=uploaded), patch(
             "engine.extract_universal_transactions", side_effect=simulated_ocr,
@@ -176,6 +179,11 @@ class SourcePageTests(unittest.TestCase):
             self.assertTrue(ui.checkbox(key="bb_use_ocr").value)
             self.assertFalse(ui.error)
             self.assertTrue(ui.get("download_button"))
+            self.assertTrue(any("Local OCR read PDF pages 2" in item.value for item in ui.caption))
+            with patch("streamlit.image") as preview:
+                ui.checkbox(key="bb_preview_1").check().run()
+                self.assertEqual(ui.selectbox(key="bb_preview_page_1").value, 2)
+                self.assertIn("page 2", preview.call_args.kwargs["caption"])
 
     def test_missing_ocr_setup_keeps_the_affected_page_available_for_preview(self):
         fixture = test_conversion.UniversalDepositTests

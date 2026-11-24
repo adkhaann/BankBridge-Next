@@ -3623,6 +3623,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     running_balances = []
     carried_balances = []
     source_pages = []
+    ocr_pages = []
     posting_dates = []
     marked_rows = set()
     layout = None
@@ -3649,6 +3650,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 lines = page.get_text(sort=True, textpage=text_page).splitlines()
                 if not any(line.strip() for line in lines):
                     raise ValueError(f"Local OCR found no readable text on page {page.number + 1}.")
+                ocr_pages.append(page.number + 1)
             if bank == "Simplii Financial" and not is_card:
                 positioned = simplii_positioned_lines(page.get_text("words", textpage=text_page))
                 table_lines, forward = normalize_simplii_chequing_table(positioned, page.number + 1)
@@ -3906,6 +3908,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         "carried_balances": carried_checks,
         "period": period,
         "source_pages": source_pages,
+        "ocr_pages": ocr_pages,
     }
 
 

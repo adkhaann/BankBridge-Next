@@ -97,7 +97,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Password-protected, empty, and unreadable PDFs produce clear recovery messages across statement detection, conversion, and preview. Synthetic coverage verifies the shared behavior. The conversion screen shows file recovery guidance and clears it after replacement.
 
-- Textless pages in experimental conversion offer a one-click local OCR retry. The UI regression checks explicit opt-in and reconciliation before export. A separate UI regression verifies OCR setup guidance and preview of the affected page when Tesseract data is unavailable. The existing synthetic scan test exercises real OCR.
+- Textless pages in experimental conversion offer a one-click local OCR retry. The UI regression checks explicit opt-in and reconciliation before export. A separate UI regression verifies OCR setup guidance and preview of the affected page when Tesseract data is unavailable. The review identifies the pages read by OCR and opens the preview on the first one. Synthetic coverage verifies real OCR page tracking and the preview behavior.
 
 ## Dedicated layout compatibility
 

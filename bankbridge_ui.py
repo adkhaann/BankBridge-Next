@@ -415,8 +415,16 @@ else:
                 edited["Debit"] = pd.to_numeric(edited["Debit"], errors="coerce").fillna(0.0)
                 edited["Credit"] = pd.to_numeric(edited["Credit"], errors="coerce").fillna(0.0)
                 edited["Description"] = edited["Description"].fillna("").astype(str)
-                if info.get("source_pages") and uploaded is not None:
-                    show_statement_preview(uploaded, ss["bb_run"], info["source_pages"])
+                ocr_pages = info.get("ocr_pages", [])
+                if ocr_pages:
+                    pages = ", ".join(map(str, ocr_pages))
+                    st.caption(f"Local OCR read PDF pages {pages}. Compare those pages with the extracted transactions.")
+                preview_pages = sorted(set(info.get("source_pages", [])) | set(ocr_pages))
+                if preview_pages and uploaded is not None:
+                    show_statement_preview(
+                        uploaded, ss["bb_run"], preview_pages,
+                        initial_page=ocr_pages[0] if ocr_pages else None,
+                    )
 
             rec = reconcile(edited, info)
 
