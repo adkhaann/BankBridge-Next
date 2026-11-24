@@ -3200,6 +3200,21 @@ def marked_amount_cents(value):
     return -cents if direction.upper() == "DR" else cents
 
 
+def split_column_amount_cents(value, *, debit, is_card):
+    if value in ("-", "—"):
+        return 0
+    if is_card and not debit:
+        # Card credit columns historically allow negative amounts and a spaced CR suffix.
+        value = re.sub(r"\s+CR$", "", value, flags=re.IGNORECASE)
+    marked = marked_amount_cents(value)
+    if marked is not None:
+        if marked and (marked < 0) != debit:
+            raise ValueError("The DR or CR marker conflicts with its transaction column.")
+        return abs(marked)
+    amount = universal_money_cents(value)
+    return abs(amount) if is_card and not debit else amount
+
+
 def fixed_width_column_starts(line, columns):
     starts = []
     offset = 0
@@ -3566,12 +3581,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 else:
                     amounts = columns[amount_index:amount_index + 2]
                     debit, credit = amounts[::-1] if credit_first else amounts
-                    debit_cents = 0 if debit in ("-", "—") else universal_money_cents(debit)
-                    if is_card:
-                        credit = re.sub(r"\s+CR$", "", credit, flags=re.IGNORECASE)
-                    credit_cents = 0 if credit in ("-", "—") else universal_money_cents(credit)
-                    if is_card:
-                        credit_cents = abs(credit_cents)
+                    debit_cents = split_column_amount_cents(debit, debit=True, is_card=is_card)
+                    credit_cents = split_column_amount_cents(credit, debit=False, is_card=is_card)
                 if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
                     raise ValueError(f"Expected one positive debit or credit on page {page.number + 1}.")
                 rows.append((date, description, debit_cents, credit_cents))

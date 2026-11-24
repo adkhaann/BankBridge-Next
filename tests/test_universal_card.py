@@ -9,7 +9,7 @@ import engine
 from test_conversion import statement_pdf
 
 
-def card_statement(closing="110.00", *, payment="20.00"):
+def card_statement(closing="110.00", *, payment="20.00", charge="30.00"):
     return statement_pdf(
         [
             "Previous balance: 100.00",
@@ -18,7 +18,7 @@ def card_statement(closing="110.00", *, payment="20.00"):
             "Total payments and credits: -20.00",
             "Transaction count: 2",
             "Date          Description         Charges    Payments and credits    Balance",
-            "2026-01-05    Synthetic purchase  30.00      -                       130.00",
+            f"2026-01-05    Synthetic purchase  {charge:<11}-                       130.00",
         ],
         [
             "Date          Description         Charges    Payments and credits    Balance",
@@ -87,3 +87,17 @@ class UniversalCardTests(unittest.TestCase):
                 frame, info = engine.extract_universal_transactions(pdf, "Other", "Credit Card")
                 self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), [[30.0, 0.0], [0.0, 20.0]])
                 self.assertEqual(engine.reconcile_statement(frame, info)[1], charge_count == 1)
+
+    def test_split_columns_validate_debit_and_credit_markers(self):
+        def convert(charge, payment):
+            return engine.extract_universal_transactions(
+                card_statement(charge=charge, payment=payment), "Other", "Credit Card"
+            )
+
+        frame, info = convert("30.00 DR", "20.00CR")
+        self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), [[30.0, 0.0], [0.0, 20.0]])
+        self.assertTrue(engine.reconcile_statement(frame, info)[1])
+        for charge, payment in (("30.00 CR", "20.00"), ("30.00", "20.00 DR")):
+            with self.subTest(charge=charge, payment=payment):
+                with self.assertRaisesRegex(ValueError, "conflicts with its transaction column"):
+                    convert(charge, payment)
