@@ -78,3 +78,20 @@ class AccountingAmountTests(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 with self.assertRaisesRegex(ValueError, "Unrecognized amount"):
                     engine.universal_money_cents(invalid)
+
+    def test_dollar_symbol_can_precede_or_follow_either_decimal_format(self):
+        pdf = statement_pdf([
+            "Currency: USD",
+            "Opening balance: $ 100.00", "Closing balance: 90.00 $",
+            "Total debits: $ 10,00", "Total credits: 0,00 $",
+            "Date          Description         Amount     Balance",
+            "2026-01-05    Synthetic debit     ($ 10,00)  90.00 $",
+        ])
+        frame, info = engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+        self.assertEqual(frame["Debit"].tolist(), [10.0])
+        self.assertEqual(info["currency"], "USD")
+        self.assertTrue(engine.reconcile_statement(frame, info)[1])
+        for invalid in ("$10.00$", "$$10.00", "1$0.00", "$-10.00"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "Unrecognized amount"):
+                    engine.universal_money_cents(invalid)
