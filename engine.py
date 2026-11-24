@@ -3017,15 +3017,8 @@ def universal_money_cents(value, *, amount_currencies=None):
         if value.startswith(("-", "+")):
             value = value[1:]
 
-    allowed_symbols = ("$", *STATEMENT_AMOUNT_SYMBOLS) if amount_currencies is not None else ("$",)
     currency_code = None
-    if value.startswith(allowed_symbols):
-        currency_code = STATEMENT_AMOUNT_SYMBOLS.get(value[0])
-        value = value[1:].lstrip()
-    elif value.endswith(allowed_symbols):
-        currency_code = STATEMENT_AMOUNT_SYMBOLS.get(value[-1])
-        value = value[:-1].rstrip()
-    elif amount_currencies is not None:
+    if amount_currencies is not None:
         prefix = re.fullmatch(r"([A-Z]{3}) +(.+)", value, re.IGNORECASE | re.ASCII)
         suffix = re.fullmatch(r"(.+) +([A-Z]{3})", value, re.IGNORECASE | re.ASCII)
         if prefix:
@@ -3034,13 +3027,26 @@ def universal_money_cents(value, *, amount_currencies=None):
             value, currency_code = suffix.groups()
             value = value.rstrip()
 
+    allowed_symbols = ("$", *STATEMENT_AMOUNT_SYMBOLS) if amount_currencies is not None else ("$",)
+    symbol = None
+    if value.startswith(allowed_symbols):
+        symbol, value = value[0], value[1:].lstrip()
+    elif value.endswith(allowed_symbols):
+        symbol, value = value[-1], value[:-1].rstrip()
+    symbol_currency = STATEMENT_AMOUNT_SYMBOLS.get(symbol)
+    if currency_code:
+        currency_code = currency_code.upper()
+        if (symbol_currency and currency_code != symbol_currency
+                or symbol == "$" and currency_code in STATEMENT_AMOUNT_SYMBOLS.values()):
+            raise ValueError("The currency symbol conflicts with the currency code on the same amount.")
+
     match = re.fullmatch(r"(\d+|\d{1,3}(?:,\d{3})+|\d{1,3}(?: \d{3})+)\.(\d{2})", value)
     if not match:
         match = re.fullmatch(r"(\d+|\d{1,3}(?: \d{3})+|\d{1,3}(?:\.\d{3})+),(\d{2})", value)
     if not match:
         raise ValueError(f"Unrecognized amount: {original!r}.")
-    if currency_code:
-        amount_currencies.add(currency_code.upper())
+    if currency_code or symbol_currency:
+        amount_currencies.add(currency_code or symbol_currency)
     whole, fraction = match.groups()
     cents = int(re.sub(r"[., ]", "", whole)) * 100 + int(fraction)
     return -cents if negative else cents

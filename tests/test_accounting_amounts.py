@@ -131,6 +131,11 @@ class AccountingAmountTests(unittest.TestCase):
         for declared, amount, error in (
             ("USD", "USD 10.00 DR", None),
             ("USD", "10,00 usd DR", None),
+            ("USD", "USD $10.00 DR", None),
+            ("USD", "$10,00 USD DR", None),
+            ("USD", "EUR $10.00 DR", "conflicts with the currency code"),
+            ("CAD", "USD $10.00 DR", "conflicts with the declared"),
+            ("USD", "USD $10.00$ DR", "Unrecognized amount"),
             ("CAD", "USD 10.00 DR", "conflicts with the declared"),
             (None, "USD 10.00 DR", "require an explicit statement currency"),
             ("USD", "USD 10.00 CAD DR", "Unrecognized amount"),
@@ -151,3 +156,10 @@ class AccountingAmountTests(unittest.TestCase):
                     self.assertEqual(info["currency"], "USD")
                     self.assertEqual(frame["Debit"].tolist(), [10.0])
                     self.assertTrue(engine.reconcile_statement(frame, info)[1])
+
+    def test_explicit_foreign_symbol_and_code_must_agree(self):
+        currencies = set()
+        self.assertEqual(engine.universal_money_cents("EUR € 10,00", amount_currencies=currencies), 1000)
+        self.assertEqual(currencies, {"EUR"})
+        with self.assertRaisesRegex(ValueError, "conflicts with the currency code"):
+            engine.universal_money_cents("£10.00 EUR", amount_currencies=currencies)
