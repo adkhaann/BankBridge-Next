@@ -4,7 +4,7 @@ import engine
 from test_conversion import statement_pdf
 
 
-def yearless_statement(period="2025-12-20 to 2026-01-15", first_date="Dec 31", declaration=None):
+def yearless_statement(period="2025-12-20 to 2026-01-15", first_date="Dec 31", declaration=None, period_label="Statement period:"):
     lines = [
         "Opening balance: 100.00",
         "Closing balance: 115.00",
@@ -15,7 +15,7 @@ def yearless_statement(period="2025-12-20 to 2026-01-15", first_date="Dec 31", d
         "8 janvier          Synthetic credit    25.00     115.00",
     ]
     if period:
-        lines.append(f"Statement period: {period}")
+        lines.append(f"{period_label} {period}")
     if declaration:
         lines.append(f"Date format: {declaration}")
     return statement_pdf(lines)
@@ -77,3 +77,18 @@ class YearlessTransactionDateTests(unittest.TestCase):
                 self.assertTrue(engine.reconcile_statement(frame, info)[1])
         with self.assertRaisesRegex(ValueError, "exactly one day"):
             self.convert(first_date="31 déc.", period="1 janv. 2026 au 15 janv. 2026")
+
+    def test_explicit_range_prefixes_and_french_first_day(self):
+        for label, period in (
+            ("Statement period:", "From Dec. 20 2025 to Jan. 15 2026"),
+            ("Période du relevé", "du 20 déc. 2025 au 1er févr. 2026"),
+        ):
+            with self.subTest(label=label):
+                frame, info = self.convert(
+                    first_date="1er janv.", period=period, period_label=label,
+                )
+                self.assertEqual(frame["Date"].tolist(), ["2026-01-01", "2026-01-08"])
+                self.assertEqual(info["period"][0], "2025-12-20")
+                self.assertTrue(engine.reconcile_statement(frame, info)[1])
+        with self.assertRaisesRegex(ValueError, "start and end date"):
+            self.convert(first_date="1er janv.", period="From Dec. 20 2025")

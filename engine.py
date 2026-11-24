@@ -3070,18 +3070,18 @@ def universal_statement_date(value, declared_format=None):
             return datetime.strptime(normalized, fmt).date().isoformat()
         except ValueError:
             continue
-    french_date = re.fullmatch(r"(\d{1,2})\s+([^\W\d_]+)\.?\s+(\d{4})", value.casefold())
+    french_date = re.fullmatch(r"(1er|\d{1,2})\s+([^\W\d_]+)\.?\s+(\d{4})", value.casefold())
     if french_date and french_date.group(2) in FRENCH_STATEMENT_MONTHS:
         day, month, year = french_date.groups()
         try:
-            return datetime(int(year), FRENCH_STATEMENT_MONTHS[month], int(day)).date().isoformat()
+            return datetime(int(year), FRENCH_STATEMENT_MONTHS[month], int(day.removesuffix("er"))).date().isoformat()
         except ValueError:
             pass
     raise ValueError(f"Unrecognized or ambiguous transaction date: {value!r}.")
 
 
 def universal_transaction_date(value, declared_format, period):
-    day_first = re.fullmatch(r"\d{1,2}\s+[^\W\d_]+\.?", value)
+    day_first = re.fullmatch(r"(?:1er|\d{1,2})\s+[^\W\d_]+\.?", value, re.IGNORECASE)
     month_first = re.fullmatch(rf"{ENGLISH_STATEMENT_MONTH}\.?\s+\d{{1,2}}", value, re.IGNORECASE)
     numeric = re.fullmatch(r"\d{1,2}([/-])\d{1,2}", value)
     if not (day_first or month_first or numeric):
@@ -3521,8 +3521,14 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                         raise ValueError("The statement declares conflicting date formats.")
                     date_format = declared
                     continue
-                if normalized_label in ("statement period", "période du relevé"):
-                    dates = re.split(r"\s+(?:to|au|[-–—])\s+", value.strip(), flags=re.IGNORECASE)
+                period_line = re.fullmatch(
+                    r"(?:statement period|période du relevé)(?:\s*:\s*(.*)|\s+((?:from|du)\s+.+))",
+                    line, re.IGNORECASE,
+                )
+                if period_line:
+                    period_text = period_line.group(1) if period_line.group(1) is not None else period_line.group(2)
+                    period_text = re.sub(r"^(?:from|du)\s+", "", period_text.strip(), flags=re.IGNORECASE)
+                    dates = re.split(r"\s+(?:to|au|[-–—])\s+", period_text, flags=re.IGNORECASE)
                     if len(dates) != 2:
                         raise ValueError("Expected a statement period with a start and end date.")
                     printed_periods.append(dates)
@@ -3583,7 +3589,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                         header_ends = [start + len(column) for start, column in zip(header_starts, columns)]
                     continue
                 if not re.match(
-                    rf"(?:\d{{1,4}}[-/. ]|{ENGLISH_STATEMENT_MONTH}\.?\s+\d{{1,2}}(?:,| \d{{4}}(?= {{2,}}|\t)|(?= {{2,}}|\t)))",
+                    rf"(?:\d{{1,4}}[-/. ]|1er\s+|{ENGLISH_STATEMENT_MONTH}\.?\s+\d{{1,2}}(?:,| \d{{4}}(?= {{2,}}|\t)|(?= {{2,}}|\t)))",
                     line, re.IGNORECASE,
                 ):
                     if (last_transaction_line == line_number - 1 and header_starts is not None
