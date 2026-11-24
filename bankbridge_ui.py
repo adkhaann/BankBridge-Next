@@ -228,6 +228,10 @@ def show_statement_preview(uploaded, key, *, initial_page=None, printed_values=N
         st.warning("The uploaded PDF page could not be displayed.")
 
 
+def reset_transaction_editor():
+    st.session_state["bb_editor_reset"] += 1
+
+
 def retry_with_local_ocr():
     st.session_state["bb_use_ocr"] = True
     st.session_state["bb_retry_ocr"] = True
@@ -341,6 +345,7 @@ if go and uploaded is not None and extractor is not None:
             ss["bb_bank_done"], ss["bb_type_done"] = bank, account_type
             ss["bb_file_done"] = uploaded.name
             ss["bb_run"] = ss.get("bb_run", 0) + 1
+            ss["bb_editor_reset"] = 0
         except eng.StatementNeedsOcr as error:
             ss["bb_error"] = str(error)
             ss["bb_needs_ocr"] = True
@@ -398,8 +403,11 @@ else:
                 review_frame = df
                 if "source_pages" in info:
                     review_frame = df.assign(SourcePage=pd.array(info["source_pages"], dtype="Int64"))
+                editor_key = f"bb_editor_{ss['bb_run']}"
+                if reset_count := ss["bb_editor_reset"]:
+                    editor_key += f"_{reset_count}"
                 edited = st.data_editor(
-                    review_frame, key=f"bb_editor_{ss['bb_run']}", width="stretch", hide_index=True,
+                    review_frame, key=editor_key, width="stretch", hide_index=True,
                     num_rows="dynamic", height=min(420, 38 + 35 * (len(df) + 1)),
                     column_config={
                         "SourcePage": st.column_config.NumberColumn(
@@ -411,6 +419,10 @@ else:
                         "Debit": st.column_config.NumberColumn("Debit", format="dollar", min_value=0.0),
                         "Credit": st.column_config.NumberColumn("Credit", format="dollar", min_value=0.0),
                     },
+                )
+                st.button(
+                    "Reset transaction edits", on_click=reset_transaction_editor,
+                    disabled=edited.equals(review_frame),
                 )
                 edited = edited.dropna(how="all").copy()
                 edited["Debit"] = pd.to_numeric(edited["Debit"], errors="coerce").fillna(0.0)

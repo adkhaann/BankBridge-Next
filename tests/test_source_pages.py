@@ -251,3 +251,7 @@ class SourcePageTests(unittest.TestCase):
             ui.checkbox(key="bb_preview_controls_1").check().run()
             self.assertEqual(ui.selectbox(key="bb_preview_page_controls_1").value, 4)
             self.assertIn("page 4", preview.call_args.kwargs["caption"])
+            next(button for button in ui.button if button.label == "Reset transaction edits").click().run()
+            self.assertTrue(ui.get("download_button"))
+            self.assertTrue(next(button for button in ui.button if button.label == "Reset transaction edits").disabled)
+            self.assertEqual(ui.selectbox(key="bb_preview_page_controls_1").value, 4)
