@@ -43,7 +43,17 @@ def open_statement_pdf(pdf_bytes):
     return document
 
 
-STATEMENT_CURRENCY_PATTERN = r"(?:Account currency|Currency|Devise du compte|Devise)(?:\s*:\s*|\s+)(.+)"
+STATEMENT_CURRENCY_EN = r"(?:(?:Account|Statement)\s+)?Currency"
+
+
+STATEMENT_CURRENCY_FR = r"Devise(?:\s+du\s+(?:compte|relevé))?"
+
+
+STATEMENT_CURRENCY_PATTERN = (
+    rf"(?:{STATEMENT_CURRENCY_EN}(?:\s*/\s*{STATEMENT_CURRENCY_FR})?"
+    rf"|{STATEMENT_CURRENCY_FR}(?:\s*/\s*{STATEMENT_CURRENCY_EN})?)"
+    r"(?:\s*:\s*|\s+)(.+)"
+)
 
 
 STATEMENT_CURRENCY_NAMES = {
