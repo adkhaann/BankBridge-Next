@@ -242,3 +242,12 @@ class SourcePageTests(unittest.TestCase):
             controls_selector.set_value(4).run()
             self.assertIn("page 4", preview.call_args.kwargs["caption"])
             self.assertTrue(ui.get("download_button"))
+            ui.checkbox(key="bb_preview_controls_1").uncheck().run()
+            ui.session_state["bb_editor_1"] = {
+                "edited_rows": {0: {"Debit": 11.00}}, "added_rows": [], "deleted_rows": [],
+            }
+            ui.run()
+            self.assertFalse(ui.get("download_button"))
+            ui.checkbox(key="bb_preview_controls_1").check().run()
+            self.assertEqual(ui.selectbox(key="bb_preview_page_controls_1").value, 4)
+            self.assertIn("page 4", preview.call_args.kwargs["caption"])

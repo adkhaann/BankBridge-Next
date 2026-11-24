@@ -101,7 +101,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Successful conversion previews include every PDF page, even pages that contain only reconciliation totals. OCR still defaults to the first page read by OCR. A UI regression verifies a separate summary page and intact transaction page references.
 
-- Reconciliation detail lists PDF source pages for printed experimental opening and closing balances, totals, and counts. A preview in that tab jumps directly to pages with printed values, including standalone balance-forward checkpoints. A synthetic summary page and a repeated balance verify the references and navigation.
+- Reconciliation detail lists PDF source pages for printed experimental opening and closing balances, totals, and counts. A preview in that tab jumps directly to pages with printed values, including standalone balance-forward checkpoints. After an edit creates a checkpoint mismatch, opening the preview starts on the first affected page. A synthetic summary page and a repeated balance verify the references and navigation.
 
 ## Dedicated layout compatibility
 
