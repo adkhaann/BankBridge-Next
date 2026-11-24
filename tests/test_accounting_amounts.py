@@ -126,3 +126,28 @@ class AccountingAmountTests(unittest.TestCase):
                     self.assertEqual(info["currency"], declared)
                     self.assertEqual(frame["Debit"].tolist(), [10.0])
                     self.assertTrue(engine.reconcile_statement(frame, info)[1])
+
+    def test_currency_codes_on_amounts_require_a_matching_declaration(self):
+        for declared, amount, error in (
+            ("USD", "USD 10.00 DR", None),
+            ("USD", "10,00 usd DR", None),
+            ("CAD", "USD 10.00 DR", "conflicts with the declared"),
+            (None, "USD 10.00 DR", "require an explicit statement currency"),
+            ("USD", "USD 10.00 CAD DR", "Unrecognized amount"),
+        ):
+            with self.subTest(declared=declared, amount=amount):
+                lines = [f"Currency: {declared}"] if declared else []
+                pdf = statement_pdf(lines + [
+                    "Opening balance: 100.00", "Closing balance: 90.00",
+                    "Total debits: 10.00", "Total credits: 0.00",
+                    "Date          Description         Amount",
+                    f"2026-01-05    Synthetic fee       {amount}",
+                ])
+                if error:
+                    with self.assertRaisesRegex(ValueError, error):
+                        engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+                else:
+                    frame, info = engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+                    self.assertEqual(info["currency"], "USD")
+                    self.assertEqual(frame["Debit"].tolist(), [10.0])
+                    self.assertTrue(engine.reconcile_statement(frame, info)[1])

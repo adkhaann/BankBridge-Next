@@ -3094,7 +3094,7 @@ UNIVERSAL_DEPOSIT_TYPES = (
 STATEMENT_AMOUNT_SYMBOLS = {"€": "EUR", "£": "GBP"}
 
 
-def universal_money_cents(value, *, symbol_currencies=None):
+def universal_money_cents(value, *, amount_currencies=None):
     """Parse a printed amount without binary rounding or currency assumptions."""
     original = value
     value = value.strip().replace("\u00a0", " ").replace("\u202f", " ").replace("−", "-")
@@ -3109,20 +3109,30 @@ def universal_money_cents(value, *, symbol_currencies=None):
         if value.startswith(("-", "+")):
             value = value[1:]
 
-    allowed_symbols = ("$", *STATEMENT_AMOUNT_SYMBOLS) if symbol_currencies is not None else ("$",)
-    symbol = ""
+    allowed_symbols = ("$", *STATEMENT_AMOUNT_SYMBOLS) if amount_currencies is not None else ("$",)
+    currency_code = None
     if value.startswith(allowed_symbols):
-        symbol, value = value[0], value[1:].lstrip()
+        currency_code = STATEMENT_AMOUNT_SYMBOLS.get(value[0])
+        value = value[1:].lstrip()
     elif value.endswith(allowed_symbols):
-        symbol, value = value[-1], value[:-1].rstrip()
+        currency_code = STATEMENT_AMOUNT_SYMBOLS.get(value[-1])
+        value = value[:-1].rstrip()
+    elif amount_currencies is not None:
+        prefix = re.fullmatch(r"([A-Z]{3}) +(.+)", value, re.IGNORECASE | re.ASCII)
+        suffix = re.fullmatch(r"(.+) +([A-Z]{3})", value, re.IGNORECASE | re.ASCII)
+        if prefix:
+            currency_code, value = prefix.groups()
+        elif suffix:
+            value, currency_code = suffix.groups()
+            value = value.rstrip()
 
     match = re.fullmatch(r"(\d+|\d{1,3}(?:,\d{3})+|\d{1,3}(?: \d{3})+)\.(\d{2})", value)
     if not match:
         match = re.fullmatch(r"(\d+|\d{1,3}(?: \d{3})+|\d{1,3}(?:\.\d{3})+),(\d{2})", value)
     if not match:
         raise ValueError(f"Unrecognized amount: {original!r}.")
-    if symbol in STATEMENT_AMOUNT_SYMBOLS:
-        symbol_currencies.add(STATEMENT_AMOUNT_SYMBOLS[symbol])
+    if currency_code:
+        amount_currencies.add(currency_code.upper())
     whole, fraction = match.groups()
     cents = int(re.sub(r"[., ]", "", whole)) * 100 + int(fraction)
     return -cents if negative else cents
@@ -3305,7 +3315,7 @@ def render_statement_page(pdf_bytes, page_number):
         return page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False).tobytes("png")
 
 
-def marked_amount_cents(value, *, symbol_currencies=None):
+def marked_amount_cents(value, *, amount_currencies=None):
     marker = re.fullmatch(r"(.+?)\s*(DR|CR)", value.strip(), re.IGNORECASE)
     if not marker:
         return None
@@ -3313,30 +3323,30 @@ def marked_amount_cents(value, *, symbol_currencies=None):
     amount = amount.strip().replace("−", "-")
     if amount.startswith(("+", "-", "(")) or amount.endswith("-"):
         raise ValueError("An amount with DR or CR must not include a separate sign.")
-    cents = universal_money_cents(amount, symbol_currencies=symbol_currencies)
+    cents = universal_money_cents(amount, amount_currencies=amount_currencies)
     return -cents if direction.upper() == "DR" else cents
 
 
-def printed_balance_cents(value, *, is_card, symbol_currencies=None):
-    marked = marked_amount_cents(value, symbol_currencies=symbol_currencies)
+def printed_balance_cents(value, *, is_card, amount_currencies=None):
+    marked = marked_amount_cents(value, amount_currencies=amount_currencies)
     if marked is None:
-        return universal_money_cents(value, symbol_currencies=symbol_currencies)
+        return universal_money_cents(value, amount_currencies=amount_currencies)
     # A credit balance increases deposits but reduces the amount owed on a card.
     return -marked if is_card else marked
 
 
-def split_column_amount_cents(value, *, debit, is_card, symbol_currencies=None):
+def split_column_amount_cents(value, *, debit, is_card, amount_currencies=None):
     if value in ("-", "—"):
         return 0
     if is_card and not debit:
         # Card credit columns historically allow negative amounts and a spaced CR suffix.
         value = re.sub(r"\s+CR$", "", value, flags=re.IGNORECASE)
-    marked = marked_amount_cents(value, symbol_currencies=symbol_currencies)
+    marked = marked_amount_cents(value, amount_currencies=amount_currencies)
     if marked is not None:
         if marked and (marked < 0) != debit:
             raise ValueError("The DR or CR marker conflicts with its transaction column.")
         return abs(marked)
-    amount = universal_money_cents(value, symbol_currencies=symbol_currencies)
+    amount = universal_money_cents(value, amount_currencies=amount_currencies)
     return abs(amount) if is_card and not debit else amount
 
 
@@ -3583,7 +3593,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     marked_rows = set()
     layout = None
     currencies = set()
-    symbol_currencies = set()
+    amount_currencies = set()
     printed_periods = []
     date_format = None
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
@@ -3609,7 +3619,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 if forward is not None and page.number > 0:
                     preceding_balance = running_balances[-1] if running_balances else controls.get("opening")
                     forward_balance = printed_balance_cents(
-                        forward, is_card=False, symbol_currencies=symbol_currencies,
+                        forward, is_card=False, amount_currencies=amount_currencies,
                     )
                     if forward_balance != preceding_balance:
                         raise ValueError(f"Simplii balance forward differs from the preceding balance on page {page.number + 1}.")
@@ -3658,16 +3668,16 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                         recorded = int(value)
                     elif key in ("opening", "closing"):
                         recorded = printed_balance_cents(
-                            value, is_card=is_card, symbol_currencies=symbol_currencies,
+                            value, is_card=is_card, amount_currencies=amount_currencies,
                         )
                     else:
-                        marked = marked_amount_cents(value, symbol_currencies=symbol_currencies)
+                        marked = marked_amount_cents(value, amount_currencies=amount_currencies)
                         if marked is not None:
                             if marked and (marked < 0) != (key == "debit"):
                                 raise ValueError(f"The DR or CR marker conflicts with the printed {label.lower()}.")
                             recorded = abs(marked)
                         else:
-                            recorded = universal_money_cents(value, symbol_currencies=symbol_currencies)
+                            recorded = universal_money_cents(value, amount_currencies=amount_currencies)
                             if is_card and key == "credit":
                                 recorded = abs(recorded)
                     if key in controls and controls[key] != recorded:
@@ -3681,7 +3691,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 )
                 if carried:
                     balance = printed_balance_cents(
-                        carried.group(1), is_card=is_card, symbol_currencies=symbol_currencies,
+                        carried.group(1), is_card=is_card, amount_currencies=amount_currencies,
                     )
                     carried_balances.append((len(rows), page.number + 1, balance))
                     continue
@@ -3741,9 +3751,9 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     posting_dates.append(columns[1])
                 if transaction_columns == 3:
                     amount = columns[amount_index]
-                    signed = marked_amount_cents(amount, symbol_currencies=symbol_currencies)
+                    signed = marked_amount_cents(amount, amount_currencies=amount_currencies)
                     if signed is None:
-                        signed = universal_money_cents(amount, symbol_currencies=symbol_currencies)
+                        signed = universal_money_cents(amount, amount_currencies=amount_currencies)
                     elif is_card:
                         marked_rows.add(len(rows))
                     debit_cents, credit_cents = max(-signed, 0), max(signed, 0)
@@ -3751,10 +3761,10 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     amounts = columns[amount_index:amount_index + 2]
                     debit, credit = amounts[::-1] if credit_first else amounts
                     debit_cents = split_column_amount_cents(
-                        debit, debit=True, is_card=is_card, symbol_currencies=symbol_currencies,
+                        debit, debit=True, is_card=is_card, amount_currencies=amount_currencies,
                     )
                     credit_cents = split_column_amount_cents(
-                        credit, debit=False, is_card=is_card, symbol_currencies=symbol_currencies,
+                        credit, debit=False, is_card=is_card, amount_currencies=amount_currencies,
                     )
                 if not description.strip() or min(debit_cents, credit_cents) < 0 or bool(debit_cents) == bool(credit_cents):
                     raise ValueError(f"Expected one positive debit or credit on page {page.number + 1}.")
@@ -3763,7 +3773,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 source_pages.append(page.number + 1)
                 if has_running_balance:
                     balance = printed_balance_cents(
-                        columns[-1], is_card=is_card, symbol_currencies=symbol_currencies,
+                        columns[-1], is_card=is_card, amount_currencies=amount_currencies,
                     )
                     running_balances.append(balance)
     if not rows or not {"opening", "closing", "debit", "credit"} <= controls.keys():
@@ -3772,10 +3782,10 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         raise ValueError("Expected transaction rows and printed opening balance, closing balance, total debits and total credits.")
     if len(currencies) > 1:
         raise ValueError("The statement declares conflicting currencies.")
-    if symbol_currencies and not currencies:
-        raise ValueError("Euro or pound amounts require an explicit statement currency.")
-    if not symbol_currencies.issubset(currencies):
-        raise ValueError("A printed amount symbol conflicts with the declared statement currency.")
+    if amount_currencies and not currencies:
+        raise ValueError("Currency symbols or codes on amounts require an explicit statement currency.")
+    if not amount_currencies.issubset(currencies):
+        raise ValueError("A currency symbol or code on an amount conflicts with the declared statement currency.")
     period = None
     for dates in printed_periods:
         printed_period = tuple(universal_statement_date(date, date_format) for date in dates)
