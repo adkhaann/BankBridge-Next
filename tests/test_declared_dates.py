@@ -61,3 +61,8 @@ class DeclaredDateFixtureTests(unittest.TestCase):
             self.parse(numeric_statement(period=period, date="05.01.2026"))
         with self.assertRaisesRegex(ValueError, "matching printed"):
             self.parse(numeric_statement("Date format: DD/MM/YYYY", date="05.01"))
+
+    def test_invalid_transaction_date_identifies_the_source_page(self):
+        pdf = numeric_statement("Date format: DD/MM/YYYY", date="30/02/2026")
+        with self.assertRaisesRegex(ValueError, "Invalid transaction date on PDF page 1"):
+            self.parse(pdf)

@@ -3737,16 +3737,20 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         if printed_period[0] > printed_period[1] or (period and period != printed_period):
             raise ValueError("The printed statement period is reversed or conflicts between pages.")
         period = printed_period
-    for posting_date in posting_dates:
+    for posting_date, page_number in zip(posting_dates, source_pages):
         try:
             universal_transaction_date(posting_date, date_format, period)
         except ValueError as error:
             label = "card posting date" if is_card else "deposit posting or effective date"
-            raise ValueError(f"Invalid {label}: {error}") from error
-    rows = [
-        (universal_transaction_date(date, date_format, period), description, debit, credit)
-        for date, description, debit, credit in rows
-    ]
+            raise ValueError(f"Invalid {label} on PDF page {page_number}. {error}") from error
+    dated_rows = []
+    for (date, description, debit, credit), page_number in zip(rows, source_pages, strict=True):
+        try:
+            parsed_date = universal_transaction_date(date, date_format, period)
+        except ValueError as error:
+            raise ValueError(f"Invalid transaction date on PDF page {page_number}. {error}") from error
+        dated_rows.append((parsed_date, description, debit, credit))
+    rows = dated_rows
     dates = [row[0] for row in rows]
     can_reverse = bool(running_balances and not carried_balances and dates[0] > dates[-1] and all(
         earlier >= later for earlier, later in zip(dates, dates[1:])

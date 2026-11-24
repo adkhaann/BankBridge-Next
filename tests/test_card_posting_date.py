@@ -44,7 +44,7 @@ class PostingDateTests(unittest.TestCase):
                 ])
 
     def test_invalid_posting_date_blocks_extraction(self):
-        with self.assertRaisesRegex(ValueError, "Invalid card posting date"):
+        with self.assertRaisesRegex(ValueError, "Invalid card posting date on PDF page 2"):
             self.convert("2026-02-30")
 
 
