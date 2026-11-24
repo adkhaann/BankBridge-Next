@@ -80,7 +80,7 @@ class YearlessTransactionDateTests(unittest.TestCase):
 
     def test_explicit_range_prefixes_and_french_first_day(self):
         for label, period in (
-            ("Statement period:", "From Dec. 20 2025 to Jan. 15 2026"),
+            ("Statement  period:", "From Dec. 20 2025 to Jan. 15 2026"),
             ("Période du relevé", "du 20 déc. 2025 au 1er févr. 2026"),
         ):
             with self.subTest(label=label):

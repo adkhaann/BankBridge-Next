@@ -3522,7 +3522,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     date_format = declared
                     continue
                 period_line = re.fullmatch(
-                    r"(?:statement period|période du relevé)(?:\s*:\s*(.*)|\s+((?:from|du)\s+.+))",
+                    r"(?:statement\s+period|période\s+du\s+relevé)(?:\s*:\s*(.*)|\s+((?:from|du)\s+.+))",
                     line, re.IGNORECASE,
                 )
                 if period_line:
