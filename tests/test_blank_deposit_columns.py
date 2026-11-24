@@ -9,9 +9,10 @@ def fixed_row(date, description, debit="", credit="", balance=""):
 
 
 class BlankDepositColumnTests(unittest.TestCase):
-    def convert(self, *, running=True, include_second_heading=True, shifted=False, wrapped=False):
+    def convert(self, *, running=True, include_second_heading=True, shifted=False, wrapped=False, right_aligned=False):
         heading = fixed_row("Date", "Description", "Debit", "Credit", "Balance" if running else "")
-        credit = " 25.00" if shifted else "25.00"
+        credit = "  25.00" if shifted else " 25.00" if right_aligned else "25.00"
+        balance = " 115.00" if right_aligned else "115.00"
         pdf = statement_pdf(
             [
                 "Opening balance: 100.00",
@@ -24,7 +25,7 @@ class BlankDepositColumnTests(unittest.TestCase):
                 *([fixed_row("", "reference ABC"), "Statement footer", fixed_row("", "footer note")] if wrapped else []),
             ],
             ([heading] if include_second_heading else []) + [
-                fixed_row("2026-01-08", "Synthetic deposit", credit=credit, balance="115.00" if running else ""),
+                fixed_row("2026-01-08", "Synthetic deposit", credit=credit, balance=balance if running else ""),
             ],
         )
         return engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
@@ -47,3 +48,8 @@ class BlankDepositColumnTests(unittest.TestCase):
         self.assertEqual(frame["Description"].tolist(), ["Synthetic expense reference ABC", "Synthetic deposit"])
         self.assertEqual(info["source_pages"], [1, 2])
         self.assertTrue(engine.reconcile_universal_transactions(frame, info)[1])
+
+    def test_blank_debit_column_with_right_aligned_credit_and_balance(self):
+        frame, info = self.convert(right_aligned=True)
+        self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), [[10.0, 0.0], [0.0, 25.0]])
+        self.assertTrue(engine.reconcile_statement(frame, info)[1])

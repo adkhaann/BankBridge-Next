@@ -3324,18 +3324,22 @@ def fixed_width_column_starts(line, columns):
     return starts
 
 
-def fill_blank_amount_cell(line, columns, header_starts, has_running_balance, amount_index):
+def fill_blank_amount_cell(line, columns, header_starts, header_ends, has_running_balance, amount_index):
     starts = fixed_width_column_starts(line, columns)
     if starts[:amount_index] != header_starts[:amount_index]:
         return columns
-    if has_running_balance and starts[-1] != header_starts[-1]:
+
+    def aligns(value_index, heading_index):
+        left = starts[value_index]
+        right = left + len(columns[value_index])
+        return left == header_starts[heading_index] or right == header_ends[heading_index]
+
+    if has_running_balance and not aligns(-1, -1):
         return columns
-    if starts[amount_index] == header_starts[amount_index]:
-        blank_index = amount_index + 1
-    elif starts[amount_index] == header_starts[amount_index + 1]:
-        blank_index = amount_index
-    else:
+    matches = [index for index in (amount_index, amount_index + 1) if aligns(amount_index, index)]
+    if len(matches) != 1:
         return columns
+    blank_index = amount_index + 1 if matches[0] == amount_index else amount_index
     return [*columns[:blank_index], "-", *columns[blank_index:]]
 
 
@@ -3557,7 +3561,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     date_format = None
     with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
         for page in document:
-            header_starts = None
+            header_starts = header_ends = None
             text_page = None
             lines = page.get_text(sort=True).splitlines()
             if not any(line.strip() for line in lines):
@@ -3653,7 +3657,10 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     if layout is not None and current_layout != layout:
                         raise ValueError("Transaction headings changed between pages.")
                     layout = current_layout
-                    header_starts = fixed_width_column_starts(raw_line, columns) if "\t" not in raw_line else None
+                    header_starts = header_ends = None
+                    if "\t" not in raw_line:
+                        header_starts = fixed_width_column_starts(raw_line, columns)
+                        header_ends = [start + len(column) for start, column in zip(header_starts, columns)]
                     continue
                 if not re.match(
                     rf"(?:\d{{1,4}}[-/. ]|{ENGLISH_STATEMENT_MONTH}\s+\d{{1,2}}(?:,|(?= {{2,}}|\t)))",
@@ -3678,7 +3685,9 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 expected_columns = transaction_columns + has_running_balance + has_posting_date
                 if (transaction_columns == 4 and len(columns) == expected_columns - 1
                         and header_starts is not None and "\t" not in raw_line):
-                    columns = fill_blank_amount_cell(raw_line, columns, header_starts, has_running_balance, amount_index)
+                    columns = fill_blank_amount_cell(
+                        raw_line, columns, header_starts, header_ends, has_running_balance, amount_index,
+                    )
                 if len(columns) != expected_columns:
                     raise ValueError(f"Unrecognized transaction columns on page {page.number + 1}.")
                 date, description = columns[0], columns[description_index]
