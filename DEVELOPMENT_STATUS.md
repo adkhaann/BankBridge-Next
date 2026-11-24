@@ -103,7 +103,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Reconciliation detail lists PDF source pages for printed experimental opening and closing balances, totals, and counts. A preview in that tab jumps directly to pages with printed values, including standalone balance-forward checkpoints. After an edit creates a checkpoint mismatch, opening the preview starts on the first affected page. A synthetic summary page and a repeated balance verify the references and navigation.
 
-- The transaction editor can reset edits to the original extracted rows without re-reading the PDF. A UI regression verifies reconciliation and export availability after resetting a mismatched edit.
+- The transaction editor shows counts of edited, added, and removed rows and can reset edits to the original extracted rows without re-reading the PDF. A UI regression verifies reconciliation and export availability after resetting a mismatched edit.
 
 ## Dedicated layout compatibility
 

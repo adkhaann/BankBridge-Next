@@ -420,9 +420,16 @@ else:
                         "Credit": st.column_config.NumberColumn("Credit", format="dollar", min_value=0.0),
                     },
                 )
+                has_edits = not edited.equals(review_frame)
+                if has_edits:
+                    editor_changes = ss[editor_key]
+                    removed = set(editor_changes["deleted_rows"])
+                    updated = set(editor_changes["edited_rows"]) - removed
+                    added = editor_changes["added_rows"]
+                    st.caption(f"Transaction rows · {len(updated)} edited · {len(added)} added · {len(removed)} removed")
                 st.button(
                     "Reset transaction edits", on_click=reset_transaction_editor,
-                    disabled=edited.equals(review_frame),
+                    disabled=not has_edits,
                 )
                 edited = edited.dropna(how="all").copy()
                 edited["Debit"] = pd.to_numeric(edited["Debit"], errors="coerce").fillna(0.0)

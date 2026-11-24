@@ -248,10 +248,12 @@ class SourcePageTests(unittest.TestCase):
             }
             ui.run()
             self.assertFalse(ui.get("download_button"))
+            self.assertIn("Transaction rows · 1 edited · 0 added · 0 removed", [item.value for item in ui.caption])
             ui.checkbox(key="bb_preview_controls_1").check().run()
             self.assertEqual(ui.selectbox(key="bb_preview_page_controls_1").value, 4)
             self.assertIn("page 4", preview.call_args.kwargs["caption"])
             next(button for button in ui.button if button.label == "Reset transaction edits").click().run()
             self.assertTrue(ui.get("download_button"))
             self.assertTrue(next(button for button in ui.button if button.label == "Reset transaction edits").disabled)
+            self.assertFalse(any(item.value.startswith("Transaction rows ·") for item in ui.caption))
             self.assertEqual(ui.selectbox(key="bb_preview_page_controls_1").value, 4)
