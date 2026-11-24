@@ -3662,6 +3662,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     except ValueError as error:
                         raise ValueError(f"Invalid printed balance forward on PDF page {page.number + 1}. {error}") from error
                     carried_balances.append((len(rows), page.number + 1, balance))
+                    control_pages.setdefault("balance forward", set()).add(page.number + 1)
                     continue
                 columns = re.split(r"\t+| {2,}", line)
                 headings = tuple(" ".join(column.casefold().split()) for column in columns)

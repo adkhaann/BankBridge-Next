@@ -211,10 +211,12 @@ class SourcePageTests(unittest.TestCase):
         fixture = test_conversion.UniversalDepositTests
         pdf = test_conversion.statement_pdf(
             fixture.first[:-2], fixture.first[-2:], [*fixture.second, "Closing balance: 115.00"],
+            ["Balance forward: 115.00"],
         )
         _, info = engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
         self.assertEqual(info["control_pages"]["closing balance"], [1, 3])
         self.assertEqual(info["control_pages"]["transaction count"], [1])
+        self.assertEqual(info["control_pages"]["balance forward"], [4])
         uploaded = SimpleNamespace(name="summary.pdf", file_id="summary", getvalue=lambda: pdf)
         app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with patch("streamlit.file_uploader", return_value=uploaded), patch("streamlit.image") as preview:
@@ -225,17 +227,18 @@ class SourcePageTests(unittest.TestCase):
             self.assertEqual(ui.dataframe[0].value["SourcePage"].tolist(), [2, 3])
             captions = [caption.value for caption in ui.caption]
             self.assertIn("PDF page 3 · closing balance", captions)
+            self.assertIn("PDF page 4 · balance forward", captions)
             self.assertTrue(any(text.startswith("PDF page 1 ·") and "transaction count" in text for text in captions))
             ui.checkbox(key="bb_preview_1").check().run()
             page_selector = ui.selectbox(key="bb_preview_page_1")
-            self.assertEqual(page_selector.options, ["1", "2", "3"])
+            self.assertEqual(page_selector.options, ["1", "2", "3", "4"])
             self.assertEqual(page_selector.value, 1)
             self.assertIn("page 1", preview.call_args.kwargs["caption"])
             self.assertTrue(ui.get("download_button"))
             ui.checkbox(key="bb_preview_1").uncheck().run()
             ui.checkbox(key="bb_preview_controls_1").check().run()
             controls_selector = ui.selectbox(key="bb_preview_page_controls_1")
-            self.assertEqual(controls_selector.options, ["1", "3"])
-            controls_selector.set_value(3).run()
-            self.assertIn("page 3", preview.call_args.kwargs["caption"])
+            self.assertEqual(controls_selector.options, ["1", "3", "4"])
+            controls_selector.set_value(4).run()
+            self.assertIn("page 4", preview.call_args.kwargs["caption"])
             self.assertTrue(ui.get("download_button"))
