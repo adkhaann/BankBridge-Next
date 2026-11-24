@@ -3526,7 +3526,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     controls[key] = recorded
                     continue
                 carried = re.fullmatch(
-                    r"(?:balance forward|balance brought forward|solde reporté)(?:\s*:\s*|\s{2,})(.+)",
+                    r"(?:balance forward|balance (?:brought|carried) forward|solde reporté|solde à reporter)"
+                    r"(?:\s*:\s*|\s{2,})(.+)",
                     line, re.IGNORECASE,
                 )
                 if carried:

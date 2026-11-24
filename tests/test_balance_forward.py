@@ -5,14 +5,14 @@ from test_conversion import statement_pdf
 
 
 class BalanceForwardTests(unittest.TestCase):
-    def convert(self, heading="Balance forward: 90.00"):
+    def convert(self, heading="Balance forward: 90.00", *, footer=None):
         pdf = statement_pdf(
             [
                 "Opening balance: 100.00", "Closing balance: 115.00",
                 "Total debits: 10.00", "Total credits: 25.00",
                 "Date          Description         Debit    Credit",
                 "2026-01-05    Synthetic fee       10.00    -",
-            ],
+            ] + ([footer] if footer is not None else []),
             [heading, "2026-01-08    Synthetic deposit   -        25.00"],
         )
         return engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
@@ -51,3 +51,16 @@ class BalanceForwardTests(unittest.TestCase):
                 self.assertEqual(info["control"]["closing"], -5.0)
                 self.assertEqual(info["running_balances"], [-5.0])
                 self.assertTrue(engine.reconcile_statement(frame, info)[1])
+
+    def test_page_end_carry_matches_the_next_page_opening(self):
+        for footer in ("Balance carried forward: 90.00", "Solde à reporter : 90,00 $"):
+            with self.subTest(footer=footer):
+                frame, info = self.convert(footer=footer)
+                self.assertEqual(info["source_pages"], [1, 2])
+                rows, ok = engine.reconcile_statement(frame, info)
+                self.assertTrue(ok)
+                self.assertIn(("Balance forward on page 1", 90.0, 90.0, "$"), rows)
+                self.assertIn(("Balance forward on page 2", 90.0, 90.0, "$"), rows)
+
+        with self.assertRaisesRegex(ValueError, "printed balance forward on page 1"):
+            self.convert(footer="Balance carried forward: 90.01")
