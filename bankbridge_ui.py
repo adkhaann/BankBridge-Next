@@ -206,12 +206,12 @@ def step(n, title, subtitle=None, done=False):
     )
 
 
-def show_statement_preview(uploaded, key, source_pages=None, *, initial_page=None):
+def show_statement_preview(uploaded, key, *, initial_page=None):
     if not st.checkbox("Preview original PDF", key=f"bb_preview_{key}"):
         return
     pdf_bytes = uploaded.getvalue()
     try:
-        pages = sorted(set(source_pages)) if source_pages else range(1, eng.statement_page_count(pdf_bytes) + 1)
+        pages = range(1, eng.statement_page_count(pdf_bytes) + 1)
         if not pages:
             st.warning("The uploaded PDF has no pages to display.")
             return
@@ -419,10 +419,9 @@ else:
                 if ocr_pages:
                     pages = ", ".join(map(str, ocr_pages))
                     st.caption(f"Local OCR read PDF pages {pages}. Compare those pages with the extracted transactions.")
-                preview_pages = sorted(set(info.get("source_pages", [])) | set(ocr_pages))
-                if preview_pages and uploaded is not None:
+                if uploaded is not None:
                     show_statement_preview(
-                        uploaded, ss["bb_run"], preview_pages,
+                        uploaded, ss["bb_run"],
                         initial_page=ocr_pages[0] if ocr_pages else None,
                     )
 

@@ -206,3 +206,21 @@ class SourcePageTests(unittest.TestCase):
             self.assertEqual(ui.selectbox(key="bb_preview_page_failed").value, 2)
             self.assertIn("page 2", preview.call_args.kwargs["caption"])
             self.assertFalse(ui.get("download_button"))
+
+    def test_successful_preview_includes_pages_without_transactions(self):
+        fixture = test_conversion.UniversalDepositTests
+        pdf = test_conversion.statement_pdf(fixture.first[:-2], fixture.first[-2:], fixture.second)
+        uploaded = SimpleNamespace(name="summary.pdf", file_id="summary", getvalue=lambda: pdf)
+        app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
+        with patch("streamlit.file_uploader", return_value=uploaded), patch("streamlit.image") as preview:
+            ui = AppTest.from_file(str(app_path)).run()
+            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
+            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
+            next(button for button in ui.button if button.label == "Convert statement").click().run()
+            self.assertEqual(ui.dataframe[0].value["SourcePage"].tolist(), [2, 3])
+            ui.checkbox(key="bb_preview_1").check().run()
+            page_selector = ui.selectbox(key="bb_preview_page_1")
+            self.assertEqual(page_selector.options, ["1", "2", "3"])
+            self.assertEqual(page_selector.value, 1)
+            self.assertIn("page 1", preview.call_args.kwargs["caption"])
+            self.assertTrue(ui.get("download_button"))
