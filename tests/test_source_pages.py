@@ -209,7 +209,12 @@ class SourcePageTests(unittest.TestCase):
 
     def test_successful_preview_includes_pages_without_transactions(self):
         fixture = test_conversion.UniversalDepositTests
-        pdf = test_conversion.statement_pdf(fixture.first[:-2], fixture.first[-2:], fixture.second)
+        pdf = test_conversion.statement_pdf(
+            fixture.first[:-2], fixture.first[-2:], [*fixture.second, "Closing balance: 115.00"],
+        )
+        _, info = engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+        self.assertEqual(info["control_pages"]["closing balance"], [1, 3])
+        self.assertEqual(info["control_pages"]["transaction count"], [1])
         uploaded = SimpleNamespace(name="summary.pdf", file_id="summary", getvalue=lambda: pdf)
         app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with patch("streamlit.file_uploader", return_value=uploaded), patch("streamlit.image") as preview:
@@ -218,6 +223,9 @@ class SourcePageTests(unittest.TestCase):
             ui.selectbox(key="bb_type").set_value("Personal Savings").run()
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertEqual(ui.dataframe[0].value["SourcePage"].tolist(), [2, 3])
+            captions = [caption.value for caption in ui.caption]
+            self.assertIn("PDF page 3 · closing balance", captions)
+            self.assertTrue(any(text.startswith("PDF page 1 ·") and "transaction count" in text for text in captions))
             ui.checkbox(key="bb_preview_1").check().run()
             page_selector = ui.selectbox(key="bb_preview_page_1")
             self.assertEqual(page_selector.options, ["1", "2", "3"])

@@ -3528,6 +3528,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     if not is_card:
         secondary_date_headings += ("effective date", "date d'effet", "date d’effet")
     controls = {}
+    control_pages = {}
     rows = []
     running_balances = []
     carried_balances = []
@@ -3646,6 +3647,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     except ValueError as error:
                         raise ValueError(f"Invalid printed {label.strip().lower()} on PDF page {page.number + 1}. {error}") from error
                     controls[key] = recorded
+                    control_pages.setdefault(label.strip().casefold(), set()).add(page.number + 1)
                     continue
                 carried = re.fullmatch(
                     r"(?:balance forward|balance (?:brought|carried) forward|solde reporté|solde à reporter)"
@@ -3813,6 +3815,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         "currency": next(iter(currencies), None), "account_id": None, "universal": True,
         "control": {key: value if key.endswith("_count") else value / 100
                     for key, value in controls.items()},
+        "control_pages": {label: sorted(pages) for label, pages in control_pages.items()},
         "running_balances": [balance / 100 for balance in running_balances],
         "carried_balances": carried_checks,
         "period": period,

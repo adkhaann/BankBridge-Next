@@ -445,6 +445,14 @@ else:
                     f"<th class='num'>BankBridge</th><th>Result</th></tr>{body}</table>",
                     unsafe_allow_html=True,
                 )
+                if control_pages := info.get("control_pages"):
+                    pages_by_number = {}
+                    for label, pages in control_pages.items():
+                        for page in pages:
+                            pages_by_number.setdefault(page, []).append(label)
+                    st.caption("Printed statement values by PDF page")
+                    for page, labels in sorted(pages_by_number.items()):
+                        st.caption(f"PDF page {page} · {', '.join(labels)}")
                 if rec["details"]:
                     st.write("")
                     st.caption("Statement summary")

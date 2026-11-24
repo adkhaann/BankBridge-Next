@@ -101,6 +101,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Successful conversion previews include every PDF page, even pages that contain only reconciliation totals. OCR still defaults to the first page read by OCR. A UI regression verifies a separate summary page and intact transaction page references.
 
+- Reconciliation detail lists PDF source pages for printed experimental opening and closing balances, totals, and counts. A synthetic summary page and a repeated balance verify review references.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. The user confirmed a synthetic RBC Business Chequing QBO import and repeat-import check. Other QBO mappings remain unverified in QuickBooks Desktop. IIF can be generated for every reconciled CAD deposit or card layout shown below, including experimental layouts.
