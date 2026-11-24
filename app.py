@@ -3812,7 +3812,17 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         rows = classify_signed_card_rows(rows, controls, running_balances, marked_rows, carried_balances)
     else:
         if not statement_running_balances_match(rows, controls["opening"], running_balances, is_card=is_card):
-            raise ValueError("A printed running balance differs from the calculated balance.")
+            dates = [row[0] for row in rows]
+            newest_first = dates[0] > dates[-1] and all(
+                earlier >= later for earlier, later in zip(dates, dates[1:])
+            )
+            if (carried_balances or not newest_first or not statement_running_balances_match(
+                reversed(rows), controls["opening"], reversed(running_balances), is_card=is_card,
+            )):
+                raise ValueError("A printed running balance differs from the calculated balance.")
+            rows.reverse()
+            running_balances.reverse()
+            source_pages.reverse()
         page = mismatched_balance_forward_page(rows, controls["opening"], carried_balances, is_card=is_card)
         if page is not None:
             raise ValueError(f"The printed balance forward on page {page} differs from the calculated balance.")

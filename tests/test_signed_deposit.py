@@ -44,3 +44,24 @@ class SignedDepositFixtureTests(unittest.TestCase):
             self.convert(second_amount="-25.00 CR")
         with self.assertRaisesRegex(ValueError, "running balance"):
             self.convert(second_amount="25.00 DR")
+
+    def test_newest_first_rows_are_reversed_only_if_running_balances_agree(self):
+        for ending in ("115.00", "115.01"):
+            with self.subTest(ending=ending):
+                pdf = statement_pdf(
+                    [
+                        "Opening balance: 100.00", "Closing balance: 115.00",
+                        "Total debits: 10.00", "Total credits: 25.00",
+                        "Date          Description         Amount    Balance",
+                        f"2026-01-08    Synthetic credit     25.00     {ending}",
+                    ],
+                    ["2026-01-05    Synthetic debit      -10.00    90.00"],
+                )
+                if ending != "115.00":
+                    with self.assertRaisesRegex(ValueError, "running balance"):
+                        engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+                else:
+                    frame, info = engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+                    self.assertEqual(frame["Date"].tolist(), ["2026-01-05", "2026-01-08"])
+                    self.assertEqual(info["source_pages"], [2, 1])
+                    self.assertTrue(engine.reconcile_statement(frame, info)[1])

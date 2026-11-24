@@ -87,6 +87,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Experimental amounts accept one currency code and one compatible symbol together, such as USD $25.00 or EUR €25,00. The code still has to match the printed statement currency, and incompatible pairs or repeated symbols are rejected.
 
+- Experimental deposits and split-column cards can reverse newest-first tables when the printed running balances confirm chronological order. This fallback requires descending dates with at least two distinct dates and a table without balance-forward checkpoints. Synthetic deposit fixtures verify source pages and rejection of a contradictory balance.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. The user confirmed a synthetic RBC Business Chequing QBO import and repeat-import check. Other QBO mappings remain unverified in QuickBooks Desktop. IIF can be generated for every reconciled CAD deposit or card layout shown below, including experimental layouts.
@@ -134,7 +136,7 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **127 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows CI builds the executable, runs full TD CSV and RBC QBO downloads, checks the mismatch export gate, and tests updater rollback. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. The user subsequently confirmed that both the synthetic RBC QBO repeat-import check in QuickBooks Desktop and the synthetic TD CSV import check in QuickBooks Online passed. This closes the first release's sample import checks. Production statement mappings remain unverified.
+Test result on Linux with Python 3.12 was **128 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows CI builds the executable, runs full TD CSV and RBC QBO downloads, checks the mismatch export gate, and tests updater rollback. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. The user subsequently confirmed that both the synthetic RBC QBO repeat-import check in QuickBooks Desktop and the synthetic TD CSV import check in QuickBooks Online passed. This closes the first release's sample import checks. Production statement mappings remain unverified.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.
