@@ -3531,6 +3531,16 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         ("date", "description", "amount"),
         ("date", "description", "montant"),
     }
+    heading_aliases = {
+        "transaction description": "description",
+        "description de la transaction": "description",
+        "running balance": "balance",
+    }
+    if is_card:
+        heading_aliases.update({
+            "purchases and other charges": "charges",
+            "purchases & other charges": "charges",
+        })
     secondary_date_headings = ("posting date", "posted date", "date de comptabilisation")
     if not is_card:
         secondary_date_headings += ("effective date", "date d'effet", "date d’effet")
@@ -3626,7 +3636,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     carried_balances.append((len(rows), page.number + 1, balance))
                     continue
                 columns = re.split(r"\t+| {2,}", line)
-                headings = tuple(column.strip().lower() for column in columns)
+                headings = tuple(" ".join(column.casefold().split()) for column in columns)
+                headings = tuple(heading_aliases.get(heading, heading) for heading in headings)
                 running = headings[-1] in ("balance", "solde")
                 base_headings = headings[:-1] if running else headings
                 transaction_date_heading = base_headings[:1] in (("transaction date",), ("date de transaction",))

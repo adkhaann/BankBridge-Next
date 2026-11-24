@@ -101,3 +101,21 @@ class UniversalCardTests(unittest.TestCase):
             with self.subTest(charge=charge, payment=payment):
                 with self.assertRaisesRegex(ValueError, "conflicts with its transaction column"):
                     convert(charge, payment)
+
+    def test_expanded_table_headings_still_require_independent_charge_total(self):
+        for summary in ("Total charges: 30.00", "Purchases and other charges: 30.00"):
+            with self.subTest(summary=summary):
+                pdf = statement_pdf([
+                    "Previous balance: 100.00", "New balance: 110.00",
+                    summary, "Total payments and credits: 20.00",
+                    "Date    Transaction description    Purchases & other charges    Credits    Running balance",
+                    "2026-01-05    Synthetic purchase    30.00    -    130.00",
+                    "2026-01-08    Synthetic payment    -    20.00    110.00",
+                ])
+                if summary.startswith("Total"):
+                    frame, info = engine.extract_universal_transactions(pdf, "Other", "Credit Card")
+                    self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), [[30.0, 0.0], [0.0, 20.0]])
+                    self.assertTrue(engine.reconcile_statement(frame, info)[1])
+                else:
+                    with self.assertRaisesRegex(ValueError, "total charges"):
+                        engine.extract_universal_transactions(pdf, "Other", "Credit Card")
