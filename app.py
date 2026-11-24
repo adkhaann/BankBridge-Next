@@ -3291,6 +3291,14 @@ def marked_amount_cents(value):
     return -cents if direction.upper() == "DR" else cents
 
 
+def printed_balance_cents(value, *, is_card):
+    marked = marked_amount_cents(value)
+    if marked is None:
+        return universal_money_cents(value)
+    # A credit balance increases deposits but reduces the amount owed on a card.
+    return -marked if is_card else marked
+
+
 def split_column_amount_cents(value, *, debit, is_card):
     if value in ("-", "—"):
         return 0
@@ -3598,6 +3606,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                         if not re.fullmatch(r"[0-9]+", value):
                             raise ValueError(f"Unrecognized printed {label.lower()}.")
                         recorded = int(value)
+                    elif key in ("opening", "closing"):
+                        recorded = printed_balance_cents(value, is_card=is_card)
                     else:
                         recorded = universal_money_cents(value)
                         if is_card and key == "credit":
@@ -3611,7 +3621,8 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     line, re.IGNORECASE,
                 )
                 if carried:
-                    carried_balances.append((len(rows), page.number + 1, universal_money_cents(carried.group(1))))
+                    balance = printed_balance_cents(carried.group(1), is_card=is_card)
+                    carried_balances.append((len(rows), page.number + 1, balance))
                     continue
                 columns = re.split(r"\t+| {2,}", line)
                 headings = tuple(column.strip().lower() for column in columns)
@@ -3680,7 +3691,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 last_transaction_line = line_number
                 source_pages.append(page.number + 1)
                 if has_running_balance:
-                    running_balances.append(universal_money_cents(columns[-1]))
+                    running_balances.append(printed_balance_cents(columns[-1], is_card=is_card))
     if not rows or not {"opening", "closing", "debit", "credit"} <= controls.keys():
         if is_card:
             raise ValueError("Expected card transaction rows and printed previous balance, new balance, total charges and total credits.")
