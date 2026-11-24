@@ -3598,26 +3598,29 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 key = labels.get(label.strip().lower())
                 if key:
                     value = value.strip()
-                    if key.endswith("_count"):
-                        if not re.fullmatch(r"[0-9]+", value):
-                            raise ValueError(f"Unrecognized printed {label.lower()}.")
-                        recorded = int(value)
-                    elif key in ("opening", "closing"):
-                        recorded = printed_balance_cents(
-                            value, is_card=is_card, amount_currencies=amount_currencies,
-                        )
-                    else:
-                        marked = marked_amount_cents(value, amount_currencies=amount_currencies)
-                        if marked is not None:
-                            if marked and (marked < 0) != (key == "debit"):
-                                raise ValueError(f"The DR or CR marker conflicts with the printed {label.lower()}.")
-                            recorded = abs(marked)
+                    try:
+                        if key.endswith("_count"):
+                            if not re.fullmatch(r"[0-9]+", value):
+                                raise ValueError(f"Unrecognized printed {label.lower()}.")
+                            recorded = int(value)
+                        elif key in ("opening", "closing"):
+                            recorded = printed_balance_cents(
+                                value, is_card=is_card, amount_currencies=amount_currencies,
+                            )
                         else:
-                            recorded = universal_money_cents(value, amount_currencies=amount_currencies)
-                            if is_card and key == "credit":
-                                recorded = abs(recorded)
-                    if key in controls and controls[key] != recorded:
-                        raise ValueError(f"Conflicting printed {label.lower()}.")
+                            marked = marked_amount_cents(value, amount_currencies=amount_currencies)
+                            if marked is not None:
+                                if marked and (marked < 0) != (key == "debit"):
+                                    raise ValueError(f"The DR or CR marker conflicts with the printed {label.lower()}.")
+                                recorded = abs(marked)
+                            else:
+                                recorded = universal_money_cents(value, amount_currencies=amount_currencies)
+                                if is_card and key == "credit":
+                                    recorded = abs(recorded)
+                        if key in controls and controls[key] != recorded:
+                            raise ValueError(f"Conflicting printed {label.lower()}.")
+                    except ValueError as error:
+                        raise ValueError(f"Invalid printed {label.strip().lower()} on PDF page {page.number + 1}. {error}") from error
                     controls[key] = recorded
                     continue
                 carried = re.fullmatch(
@@ -3626,9 +3629,12 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                     line, re.IGNORECASE,
                 )
                 if carried:
-                    balance = printed_balance_cents(
-                        carried.group(1), is_card=is_card, amount_currencies=amount_currencies,
-                    )
+                    try:
+                        balance = printed_balance_cents(
+                            carried.group(1), is_card=is_card, amount_currencies=amount_currencies,
+                        )
+                    except ValueError as error:
+                        raise ValueError(f"Invalid printed balance forward on PDF page {page.number + 1}. {error}") from error
                     carried_balances.append((len(rows), page.number + 1, balance))
                     continue
                 columns = re.split(r"\t+| {2,}", line)

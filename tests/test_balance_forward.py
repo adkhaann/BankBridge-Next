@@ -102,3 +102,14 @@ class BalanceForwardTests(unittest.TestCase):
             with self.subTest(label=label):
                 with self.assertRaisesRegex(ValueError, "PDF page 1 of 2 is labeled"):
                     self.convert(page_label=label)
+
+    def test_malformed_reconciliation_controls_identify_the_pdf_page(self):
+        for printed, field in (
+            ("Balance forward: 9O.00", "balance forward"),
+            ("Closing balance: 11S.00", "closing balance"),
+            ("Total credits: 2S.00", "total credits"),
+            ("Transaction count: two", "transaction count"),
+        ):
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, f"Invalid printed {field} on PDF page 2"):
+                    self.convert(printed)
