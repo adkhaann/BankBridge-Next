@@ -1,5 +1,7 @@
 import unittest
 
+import fitz
+
 import engine
 from test_conversion import statement_pdf
 
@@ -95,3 +97,32 @@ class AccountingAmountTests(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 with self.assertRaisesRegex(ValueError, "Unrecognized amount"):
                     engine.universal_money_cents(invalid)
+
+    def test_euro_and_pound_symbols_match_the_declared_currency(self):
+        for symbol, declared, error in (
+            ("€", "EUR", None), ("£", "GBP", None),
+            ("€", "CAD", "conflicts with the declared"),
+            ("£", "EUR", "conflicts with the declared"),
+            ("€", None, "require an explicit statement currency"),
+        ):
+            with self.subTest(symbol=symbol, declared=declared):
+                lines = [f"Currency: {declared}"] if declared else []
+                lines += [
+                    f"Opening balance: {symbol} 100.00", f"Closing balance: 90,00 {symbol}",
+                    f"Total debits: 10,00 {symbol} DR", "Total credits: 0.00",
+                    "Date          Description         Debit       Credit    Balance",
+                    f"2026-01-05    Synthetic fee       {symbol} 10.00     -         {symbol}90.00",
+                ]
+                with fitz.open() as document:
+                    page = document.new_page()
+                    page.insert_font(fontname="embedded", fontbuffer=fitz.Font("cour").buffer)
+                    page.insert_text((42, 42), "\n".join(lines), fontname="embedded", fontsize=10)
+                    pdf = document.tobytes()
+                if error:
+                    with self.assertRaisesRegex(ValueError, error):
+                        engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+                else:
+                    frame, info = engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+                    self.assertEqual(info["currency"], declared)
+                    self.assertEqual(frame["Debit"].tolist(), [10.0])
+                    self.assertTrue(engine.reconcile_statement(frame, info)[1])
