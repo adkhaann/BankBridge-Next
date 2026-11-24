@@ -3046,6 +3046,17 @@ ENGLISH_STATEMENT_MONTH = (
 )
 
 
+FRENCH_STATEMENT_MONTHS = {
+    name: month
+    for month, names in enumerate((
+        ("janvier", "janv"), ("février", "févr"), ("mars",), ("avril", "avr"),
+        ("mai",), ("juin",), ("juillet", "juill"), ("août",),
+        ("septembre", "sept"), ("octobre", "oct"), ("novembre", "nov"), ("décembre", "déc"),
+    ), 1)
+    for name in names
+}
+
+
 def universal_statement_date(value, declared_format=None):
     normalized = re.sub(rf"\b({ENGLISH_STATEMENT_MONTH})\.(?=\s)", r"\1", value, flags=re.IGNORECASE)
     formats = (
@@ -3059,15 +3070,11 @@ def universal_statement_date(value, declared_format=None):
             return datetime.strptime(normalized, fmt).date().isoformat()
         except ValueError:
             continue
-    french_months = (
-        "janvier", "février", "mars", "avril", "mai", "juin",
-        "juillet", "août", "septembre", "octobre", "novembre", "décembre",
-    )
-    french_date = re.fullmatch(r"(\d{1,2})\s+([^\W\d_]+)\s+(\d{4})", value.casefold())
-    if french_date and french_date.group(2) in french_months:
+    french_date = re.fullmatch(r"(\d{1,2})\s+([^\W\d_]+)\.?\s+(\d{4})", value.casefold())
+    if french_date and french_date.group(2) in FRENCH_STATEMENT_MONTHS:
         day, month, year = french_date.groups()
         try:
-            return datetime(int(year), french_months.index(month) + 1, int(day)).date().isoformat()
+            return datetime(int(year), FRENCH_STATEMENT_MONTHS[month], int(day)).date().isoformat()
         except ValueError:
             pass
     raise ValueError(f"Unrecognized or ambiguous transaction date: {value!r}.")

@@ -67,3 +67,13 @@ class YearlessTransactionDateTests(unittest.TestCase):
                 )
                 self.assertEqual(frame["Date"].tolist(), ["2025-12-31", "2026-01-08"])
                 self.assertTrue(engine.reconcile_statement(frame, info)[1])
+
+    def test_abbreviated_french_months_in_rows_and_period(self):
+        for date in ("31 déc.", "31 DÉC. 2025"):
+            with self.subTest(date=date):
+                frame, info = self.convert(first_date=date, period="20 déc. 2025 au 15 janv. 2026")
+                self.assertEqual(frame["Date"].tolist(), ["2025-12-31", "2026-01-08"])
+                self.assertEqual(info["period"], ("2025-12-20", "2026-01-15"))
+                self.assertTrue(engine.reconcile_statement(frame, info)[1])
+        with self.assertRaisesRegex(ValueError, "exactly one day"):
+            self.convert(first_date="31 déc.", period="1 janv. 2026 au 15 janv. 2026")
