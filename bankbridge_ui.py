@@ -322,7 +322,7 @@ with right:
 
 current_input = (uploaded.file_id if uploaded else None, bank, account_type, universal, use_ocr)
 if ss.get("bb_input") != current_input or go:
-    for key in ("bb_df", "bb_info", "bb_bank_done", "bb_type_done", "bb_file_done", "bb_error"):
+    for key in ("bb_df", "bb_info", "bb_bank_done", "bb_type_done", "bb_file_done", "bb_error", "bb_file_error"):
         ss.pop(key, None)
     ss["bb_input"] = current_input
 
@@ -334,11 +334,15 @@ if go and uploaded is not None and extractor is not None:
             ss["bb_bank_done"], ss["bb_type_done"] = bank, account_type
             ss["bb_file_done"] = uploaded.name
             ss["bb_run"] = ss.get("bb_run", 0) + 1
+        except eng.StatementFileError as error:
+            ss["bb_file_error"] = str(error)
         except Exception as e:  # show the parser's message nicely
             ss["bb_error"] = str(e) or e.__class__.__name__
 
 has_results = "bb_df" in ss
-if ss.get("bb_error"):
+if ss.get("bb_file_error"):
+    st.error(ss["bb_file_error"])
+elif ss.get("bb_error"):
     st.error(f"**We couldn't read this statement.** {ss['bb_error']}\n\n"
              "Check that the bank and account type match the PDF, then try again.")
     if uploaded is not None:

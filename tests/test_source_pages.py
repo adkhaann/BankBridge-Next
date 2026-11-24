@@ -129,3 +129,25 @@ class SourcePageTests(unittest.TestCase):
                 with self.subTest(data=data, operation=operation):
                     with self.assertRaisesRegex(ValueError, error):
                         operation(data)
+
+    def test_upload_error_shows_file_recovery_and_clears_after_replacement(self):
+        uploaded = SimpleNamespace(name="statement.pdf", file_id="unreadable", getvalue=lambda: b"")
+        app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
+        with patch("streamlit.file_uploader", return_value=uploaded) as uploader:
+            ui = AppTest.from_file(str(app_path)).run()
+            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
+            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
+            next(button for button in ui.button if button.label == "Convert statement").click().run()
+            self.assertIn("The uploaded file is empty", ui.error[0].value)
+            self.assertNotIn("account type", ui.error[0].value)
+            self.assertFalse(any(box.label == "Preview original PDF" for box in ui.checkbox))
+            self.assertFalse(ui.get("download_button"))
+
+            uploader.return_value = SimpleNamespace(
+                name="statement.pdf", file_id="replacement", getvalue=multi_page_statement,
+            )
+            ui.run()
+            self.assertFalse(ui.error)
+            next(button for button in ui.button if button.label == "Convert statement").click().run()
+            self.assertFalse(ui.error)
+            self.assertTrue(ui.get("download_button"))

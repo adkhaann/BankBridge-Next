@@ -30,19 +30,23 @@ st.divider()
 # GENERAL HELPERS
 # =========================================================
 
+class StatementFileError(ValueError):
+    """An uploaded file cannot be opened for statement review."""
+
+
 def open_statement_pdf(pdf_bytes):
     if not pdf_bytes:
-        raise ValueError("The uploaded file is empty. Download the statement again and upload the new PDF.")
+        raise StatementFileError("The uploaded file is empty. Download the statement again and upload the new PDF.")
     try:
         document = fitz.open(stream=pdf_bytes, filetype="pdf")
     except fitz.FileDataError as error:
-        raise ValueError("The uploaded file could not be opened as a PDF. Download the statement again.") from error
+        raise StatementFileError("The uploaded file could not be opened as a PDF. Download the statement again.") from error
     if not document.is_pdf:
         document.close()
-        raise ValueError("The uploaded file is not a PDF. Upload the PDF statement from your bank.")
+        raise StatementFileError("The uploaded file is not a PDF. Upload the PDF statement from your bank.")
     if document.needs_pass:
         document.close()
-        raise ValueError("This PDF is password-protected. Open it with its password and save an unlocked copy, then upload that copy.")
+        raise StatementFileError("This PDF is password-protected. Open it with its password and save an unlocked copy, then upload that copy.")
     return document
 
 
