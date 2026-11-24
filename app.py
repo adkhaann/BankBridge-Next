@@ -3107,14 +3107,12 @@ def universal_money_cents(value):
             value = value[1:]
 
     match = re.fullmatch(r"\$?(\d+|\d{1,3}(?:,\d{3})+|\d{1,3}(?: \d{3})+)\.(\d{2})", value)
-    grouping = ","
     if not match:
-        grouping = " "
-        match = re.fullmatch(r"(\d+|\d{1,3}(?: \d{3})+),(\d{2})(?: ?\$)?", value)
+        match = re.fullmatch(r"(\d+|\d{1,3}(?: \d{3})+|\d{1,3}(?:\.\d{3})+),(\d{2})(?: ?\$)?", value)
     if not match:
         raise ValueError(f"Unrecognized amount: {original!r}.")
     whole, fraction = match.groups()
-    cents = int(whole.replace(grouping, "").replace(" ", "")) * 100 + int(fraction)
+    cents = int(re.sub(r"[., ]", "", whole)) * 100 + int(fraction)
     return -cents if negative else cents
 
 

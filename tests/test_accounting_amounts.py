@@ -61,3 +61,20 @@ class AccountingAmountTests(unittest.TestCase):
         frame, info = engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
         self.assertEqual(frame["Debit"].tolist(), [1234.56])
         self.assertTrue(engine.reconcile_statement(frame, info)[1])
+
+    def test_dot_grouping_with_comma_decimals_reconciles(self):
+        pdf = statement_pdf([
+            "Currency: EUR",
+            "Opening balance: 2.000,00", "Closing balance: 765,44",
+            "Total debits: 1.234,56", "Total credits: 0,00",
+            "Date          Description         Amount      Balance",
+            "2026-01-05    Synthetic debit     -1.234,56   765,44",
+        ])
+        frame, info = engine.extract_universal_transactions(pdf, "Other", "Personal Savings")
+        self.assertEqual(frame["Debit"].tolist(), [1234.56])
+        self.assertEqual(info["currency"], "EUR")
+        self.assertTrue(engine.reconcile_statement(frame, info)[1])
+        for invalid in ("1.23,45", "1.234 567,89", "1.234"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "Unrecognized amount"):
+                    engine.universal_money_cents(invalid)
