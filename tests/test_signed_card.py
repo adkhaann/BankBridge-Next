@@ -80,3 +80,28 @@ class SignedCardTests(unittest.TestCase):
                 self.assertTrue(engine.reconcile_statement(frame, info)[1])
         with self.assertRaisesRegex(ValueError, "balance forward on page 2"):
             convert("130.01")
+
+    def test_printed_direction_counts_resolve_equal_totals(self):
+        for charge_count, expected in (
+            (2, [[10.0, 0.0], [20.0, 0.0], [0.0, 30.0]]),
+            (1, [[0.0, 10.0], [0.0, 20.0], [30.0, 0.0]]),
+            (3, None),
+        ):
+            with self.subTest(charge_count=charge_count):
+                pdf = statement_pdf([
+                    "Previous balance: 100.00", "New balance: 100.00",
+                    "Total charges: 30.00", "Total payments and credits: 30.00",
+                    f"Number of charges: {charge_count}",
+                    f"Number of payments and credits: {3 - charge_count}",
+                    "Date          Description          Amount",
+                    "2026-01-05    Synthetic entry       10.00",
+                    "2026-01-06    Synthetic entry       20.00",
+                    "2026-01-08    Synthetic entry       -30.00",
+                ])
+                if expected is None:
+                    with self.assertRaisesRegex(ValueError, "transaction counts"):
+                        engine.extract_universal_transactions(pdf, "Other", "Credit Card")
+                else:
+                    frame, info = engine.extract_universal_transactions(pdf, "Other", "Credit Card")
+                    self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), expected)
+                    self.assertTrue(engine.reconcile_statement(frame, info)[1])

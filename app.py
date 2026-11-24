@@ -3427,6 +3427,12 @@ def classify_signed_card_rows(rows, controls, running_balances, marked_rows, car
         credits = sum(credit for _, _, _, credit in candidate)
         if (charges, credits) != (controls["debit"], controls["credit"]):
             continue
+        if any(key in controls and controls[key] != count for key, count in (
+            ("debit_count", sum(debit > 0 for _, _, debit, _ in candidate)),
+            ("credit_count", sum(credit > 0 for _, _, _, credit in candidate)),
+            ("transaction_count", len(candidate)),
+        )):
+            continue
         if controls["opening"] + charges - credits != controls["closing"]:
             continue
         if not statement_running_balances_match(candidate, controls["opening"], running_balances, is_card=True):
@@ -3439,7 +3445,7 @@ def classify_signed_card_rows(rows, controls, running_balances, marked_rows, car
     if not matches:
         if failed_page is not None:
             raise ValueError(f"The printed balance forward on page {failed_page} differs from the calculated balance.")
-        raise ValueError("The signed card amounts do not match the printed totals and balances.")
+        raise ValueError("The signed card amounts do not match the printed totals, transaction counts, or balances.")
     if len(matches) != 1:
         raise ValueError("The signed card amounts are ambiguous. Both sign conventions match the printed controls.")
     return matches[0]
