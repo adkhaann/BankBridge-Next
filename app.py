@@ -30,6 +30,14 @@ st.divider()
 # GENERAL HELPERS
 # =========================================================
 
+def open_statement_pdf(pdf_bytes):
+    document = fitz.open(stream=pdf_bytes, filetype="pdf")
+    if document.needs_pass:
+        document.close()
+        raise ValueError("This PDF is password-protected. Open it with its password and save an unlocked copy, then upload that copy.")
+    return document
+
+
 STATEMENT_CURRENCY_PATTERN = r"(?:Account currency|Currency|Devise du compte|Devise)(?:\s*:\s*|\s+)(.+)"
 STATEMENT_CURRENCY_NAMES = {
     "canadian dollar": "CAD", "canadian dollars": "CAD",
@@ -341,10 +349,7 @@ def extract_td_chequing_transactions(
     pdf_bytes
 ):
 
-    doc = fitz.open(
-        stream=pdf_bytes,
-        filetype="pdf"
-    )
+    doc = open_statement_pdf(pdf_bytes)
 
     full_text = ""
 
@@ -618,7 +623,7 @@ def extract_td_chequing_transactions(
 # RBC BUSINESS CHEQUING
 # =========================================================
 def extract_rbc_business_chequing_transactions(pdf_bytes):
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = open_statement_pdf(pdf_bytes)
     full_text = "\n".join(p.get_text("text") for p in doc)
 
     year_m = re.search(r"to\s+\w+\s+\d{1,2},\s+(20\d{2})", full_text, re.I)
@@ -859,7 +864,7 @@ def extract_rbc_mastercard_transactions(pdf_bytes):
     Payments are printed as negative amounts and become Credit values.
     """
 
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = open_statement_pdf(pdf_bytes)
 
     full_text = "\n".join(
         page.get_text("text") for page in doc
@@ -1232,7 +1237,7 @@ def get_bmo_chequing_summary(full_text):
 
 
 def extract_bmo_business_chequing_transactions(pdf_bytes):
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = open_statement_pdf(pdf_bytes)
     full_text = "\n".join(page.get_text("text") for page in doc)
     info = get_bmo_chequing_summary(full_text)
 
@@ -1425,7 +1430,7 @@ def get_bmo_credit_card_summary(full_text):
 
 
 def extract_bmo_credit_card_transactions(pdf_bytes):
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = open_statement_pdf(pdf_bytes)
     full_text = "\n".join(page.get_text("text") for page in doc)
     summary = get_bmo_credit_card_summary(full_text)
 
@@ -1764,7 +1769,7 @@ def get_scotiabank_business_chequing_summary(full_text):
 
 
 def extract_scotiabank_business_chequing_transactions(pdf_bytes):
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = open_statement_pdf(pdf_bytes)
     full_text = "\n".join(page.get_text("text") for page in doc)
     info = get_scotiabank_business_chequing_summary(full_text)
 
@@ -2149,10 +2154,7 @@ def extract_td_credit_card_transactions(
     pdf_bytes
 ):
 
-    doc = fitz.open(
-        stream=pdf_bytes,
-        filetype="pdf"
-    )
+    doc = open_statement_pdf(pdf_bytes)
 
     full_text = ""
 
@@ -2876,7 +2878,7 @@ def cibc_bank_identifier(full_text):
 
 
 def extract_cibc_credit_card_transactions(pdf_bytes):
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+    with open_statement_pdf(pdf_bytes) as doc:
         if len(doc) < 2:
             raise ValueError("CIBC credit-card transaction page missing.")
         text = doc[0].get_text("text")
@@ -2970,7 +2972,7 @@ def extract_cibc_credit_card_transactions(pdf_bytes):
 
 
 def extract_cibc_chequing_transactions(pdf_bytes):
-    doc=fitz.open(stream=pdf_bytes,filetype='pdf')
+    doc=open_statement_pdf(pdf_bytes)
     page_texts = [page.get_text("text") for page in doc]
     first = page_texts[0]
     if 'CIBC Account Statement' not in first or 'Transaction details' not in first:
@@ -3268,7 +3270,7 @@ STATEMENT_PRODUCT_HEADINGS = {
 
 def detect_statement_selection(pdf_bytes):
     """Recognize explicit metadata and exact headings on the first page."""
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
+    with open_statement_pdf(pdf_bytes) as document:
         if not len(document):
             return {}
         lines = [
@@ -3304,13 +3306,13 @@ def detect_statement_selection(pdf_bytes):
 
 
 def statement_page_count(pdf_bytes):
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
+    with open_statement_pdf(pdf_bytes) as document:
         return len(document)
 
 
 def render_statement_page(pdf_bytes, page_number):
     """Render a bounded, in-memory preview of one 1-based PDF page."""
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
+    with open_statement_pdf(pdf_bytes) as document:
         if not 1 <= page_number <= len(document):
             raise ValueError("The selected PDF page is unavailable.")
         page = document[page_number - 1]
@@ -3612,7 +3614,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
     amount_currencies = set()
     printed_periods = []
     date_format = None
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as document:
+    with open_statement_pdf(pdf_bytes) as document:
         for page in document:
             header_starts = header_ends = None
             text_page = None

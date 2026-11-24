@@ -5,6 +5,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import fitz
+
 import engine
 from streamlit.testing.v1 import AppTest
 
@@ -48,8 +50,6 @@ class SourcePageTests(unittest.TestCase):
                 self.assertTrue(ui.get("download_button"))
 
     def test_page_preview_is_bounded_and_one_based(self):
-        import fitz
-
         image = engine.render_statement_page(multi_page_statement(), 2)
         pixmap = fitz.Pixmap(image)
         self.assertLessEqual(max(pixmap.width, pixmap.height), 1600)
@@ -99,3 +99,18 @@ class SourcePageTests(unittest.TestCase):
                     self.assertEqual(ui.selectbox(key="bb_preview_page_failed").value, 2)
                     self.assertIn("page 2", preview.call_args.kwargs["caption"])
                     self.assertFalse(ui.get("download_button"))
+
+    def test_password_protected_pdf_has_clear_recovery_instructions(self):
+        with fitz.open(stream=multi_page_statement(), filetype="pdf") as document:
+            locked = document.tobytes(
+                encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="synthetic-user", owner_pw="synthetic-owner",
+            )
+        for operation in (
+            engine.detect_statement_selection,
+            engine.extract_td_chequing_transactions,
+            lambda pdf: engine.extract_universal_transactions(pdf, "Other", "Personal Savings"),
+            lambda pdf: engine.render_statement_page(pdf, 1),
+        ):
+            with self.subTest(operation=operation):
+                with self.assertRaisesRegex(ValueError, "password-protected.*save an unlocked copy"):
+                    operation(locked)
