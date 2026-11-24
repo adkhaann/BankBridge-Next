@@ -176,3 +176,25 @@ class SourcePageTests(unittest.TestCase):
             self.assertTrue(ui.checkbox(key="bb_use_ocr").value)
             self.assertFalse(ui.error)
             self.assertTrue(ui.get("download_button"))
+
+    def test_missing_ocr_setup_keeps_the_affected_page_available_for_preview(self):
+        fixture = test_conversion.UniversalDepositTests
+        pdf = test_conversion.statement_pdf(fixture.first, [])
+        uploaded = SimpleNamespace(name="scan.pdf", file_id="missing-ocr", getvalue=lambda: pdf)
+        app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
+        with (
+            patch("streamlit.file_uploader", return_value=uploaded),
+            patch("streamlit.image") as preview,
+            patch.object(fitz.Page, "get_textpage_ocr", side_effect=RuntimeError("missing tessdata")),
+        ):
+            ui = AppTest.from_file(str(app_path)).run()
+            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
+            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
+            next(button for button in ui.button if button.label == "Convert statement").click().run()
+            next(button for button in ui.button if button.label == "Retry with local OCR").click().run()
+            self.assertIn("Local OCR is unavailable on PDF page 2", ui.error[0].value)
+            self.assertIn("TESSDATA_PREFIX", ui.error[0].value)
+            ui.checkbox(key="bb_preview_failed").check().run()
+            self.assertEqual(ui.selectbox(key="bb_preview_page_failed").value, 2)
+            self.assertIn("page 2", preview.call_args.kwargs["caption"])
+            self.assertFalse(ui.get("download_button"))

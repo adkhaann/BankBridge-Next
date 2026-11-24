@@ -3550,7 +3550,11 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                 try:
                     text_page = page.get_textpage_ocr(dpi=300, full=True)
                 except (RuntimeError, ValueError) as error:
-                    raise ValueError("Local OCR is unavailable. Install Tesseract and configure TESSDATA_PREFIX.") from error
+                    raise ValueError(
+                        f"Local OCR is unavailable on PDF page {page.number + 1}. "
+                        "Check that Tesseract and its English language data are installed, "
+                        "then set TESSDATA_PREFIX to the tessdata folder and restart BankBridgeNext."
+                    ) from error
                 lines = page.get_text(sort=True, textpage=text_page).splitlines()
                 if not any(line.strip() for line in lines):
                     raise ValueError(f"Local OCR found no readable text on page {page.number + 1}.")
