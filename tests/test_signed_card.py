@@ -105,3 +105,25 @@ class SignedCardTests(unittest.TestCase):
                     frame, info = engine.extract_universal_transactions(pdf, "Other", "Credit Card")
                     self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), expected)
                     self.assertTrue(engine.reconcile_statement(frame, info)[1])
+
+    def test_newest_first_signed_card_preserves_markers_and_source_pages(self):
+        for balance in ("110.00", "110.01"):
+            with self.subTest(balance=balance):
+                pdf = statement_pdf(
+                    [
+                        "Previous balance: 100.00", "New balance: 110.00",
+                        "Total charges: 30.00", "Total payments and credits: 20.00",
+                        "Date          Description          Amount      Balance",
+                        f"2026-01-08    Synthetic payment     20.00 CR    {balance}",
+                    ],
+                    ["2026-01-05    Synthetic charge      30.00       130.00"],
+                )
+                if balance != "110.00":
+                    with self.assertRaisesRegex(ValueError, "do not match"):
+                        engine.extract_universal_transactions(pdf, "Other", "Credit Card")
+                else:
+                    frame, info = engine.extract_universal_transactions(pdf, "Other", "Credit Card")
+                    self.assertEqual(frame["Date"].tolist(), ["2026-01-05", "2026-01-08"])
+                    self.assertEqual(frame[["Debit", "Credit"]].values.tolist(), [[30, 0], [0, 20]])
+                    self.assertEqual(info["source_pages"], [2, 1])
+                    self.assertTrue(engine.reconcile_statement(frame, info)[1])

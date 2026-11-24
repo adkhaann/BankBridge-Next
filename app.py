@@ -3483,13 +3483,16 @@ def mismatched_balance_forward_page(rows, opening, carried_balances, *, is_card)
     return None
 
 
-def classify_signed_card_rows(rows, controls, running_balances, marked_rows, carried_balances):
+def classify_signed_card_rows(
+    rows, controls, running_balances, marked_rows, carried_balances, *, can_reverse,
+):
     reversed_rows = [
         row if index in marked_rows else (row[0], row[1], row[3], row[2])
         for index, row in enumerate(rows)
     ]
     candidates = (rows,) if reversed_rows == rows else (rows, reversed_rows)
     matches = []
+    reverse_matches = []
     failed_page = None
     for candidate in candidates:
         charges = sum(debit for _, _, debit, _ in candidate)
@@ -3505,19 +3508,26 @@ def classify_signed_card_rows(rows, controls, running_balances, marked_rows, car
         if controls["opening"] + charges - credits != controls["closing"]:
             continue
         if not statement_running_balances_match(candidate, controls["opening"], running_balances, is_card=True):
+            if can_reverse and statement_running_balances_match(
+                reversed(candidate), controls["opening"], reversed(running_balances), is_card=True,
+            ):
+                reverse_matches.append(candidate[::-1])
             continue
         page = mismatched_balance_forward_page(candidate, controls["opening"], carried_balances, is_card=True)
         if page is None:
             matches.append(candidate)
         else:
             failed_page = page
+    used_reverse = not matches and bool(reverse_matches)
+    if used_reverse:
+        matches = reverse_matches
     if not matches:
         if failed_page is not None:
             raise ValueError(f"The printed balance forward on page {failed_page} differs from the calculated balance.")
         raise ValueError("The signed card amounts do not match the printed totals, transaction counts, or balances.")
     if len(matches) != 1:
         raise ValueError("The signed card amounts are ambiguous. Both sign conventions match the printed controls.")
-    return matches[0]
+    return matches[0], used_reverse
 
 
 def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=False):
@@ -3808,24 +3818,29 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
         (universal_transaction_date(date, date_format, period), description, debit, credit)
         for date, description, debit, credit in rows
     ]
+    dates = [row[0] for row in rows]
+    can_reverse = bool(running_balances and not carried_balances and dates[0] > dates[-1] and all(
+        earlier >= later for earlier, later in zip(dates, dates[1:])
+    ))
+    used_reverse = False
     if is_card and layout[0] == 3:
-        rows = classify_signed_card_rows(rows, controls, running_balances, marked_rows, carried_balances)
+        rows, used_reverse = classify_signed_card_rows(
+            rows, controls, running_balances, marked_rows, carried_balances, can_reverse=can_reverse,
+        )
     else:
         if not statement_running_balances_match(rows, controls["opening"], running_balances, is_card=is_card):
-            dates = [row[0] for row in rows]
-            newest_first = dates[0] > dates[-1] and all(
-                earlier >= later for earlier, later in zip(dates, dates[1:])
-            )
-            if (carried_balances or not newest_first or not statement_running_balances_match(
+            if not can_reverse or not statement_running_balances_match(
                 reversed(rows), controls["opening"], reversed(running_balances), is_card=is_card,
-            )):
+            ):
                 raise ValueError("A printed running balance differs from the calculated balance.")
             rows.reverse()
-            running_balances.reverse()
-            source_pages.reverse()
+            used_reverse = True
         page = mismatched_balance_forward_page(rows, controls["opening"], carried_balances, is_card=is_card)
         if page is not None:
             raise ValueError(f"The printed balance forward on page {page} differs from the calculated balance.")
+    if used_reverse:
+        running_balances.reverse()
+        source_pages.reverse()
     carried_checks = [(count, page, printed / 100) for count, page, printed in carried_balances]
     frame = pd.DataFrame(rows, columns=["Date", "Description", "Debit", "Credit"])
     frame[["Debit", "Credit"]] = frame[["Debit", "Credit"]] / 100
