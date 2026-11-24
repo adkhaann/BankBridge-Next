@@ -96,3 +96,9 @@ class BalanceForwardTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "Unrecognized transaction columns"):
             self.convert(footer="2026-01-06    Synthetic fee")
+
+    def test_inconsistent_printed_page_labels_block_conversion(self):
+        for label in ("Page 1 of 3", "2 sur 2", "0 of 2"):
+            with self.subTest(label=label):
+                with self.assertRaisesRegex(ValueError, "PDF page 1 of 2 is labeled"):
+                    self.convert(page_label=label)

@@ -3551,7 +3551,14 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
             last_transaction_line = None
             for line_number, raw_line in enumerate(lines):
                 line = raw_line.strip()
-                if re.fullmatch(r"(?:page\s+)?[0-9]+\s+(?:of|sur)\s+[0-9]+", line, re.IGNORECASE):
+                page_label = re.fullmatch(r"(?:page\s+)?([0-9]+)\s+(?:of|sur)\s+([0-9]+)", line, re.IGNORECASE)
+                if page_label:
+                    printed_page, printed_total = map(int, page_label.groups())
+                    if (printed_page, printed_total) != (page.number + 1, len(document)):
+                        raise ValueError(
+                            f"PDF page {page.number + 1} of {len(document)} is labeled "
+                            f"{printed_page} of {printed_total}. Check for missing or out-of-order statement pages."
+                        )
                     continue
                 currency = printed_currency_code(line)
                 if currency:
