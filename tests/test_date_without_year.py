@@ -58,3 +58,12 @@ class YearlessTransactionDateTests(unittest.TestCase):
             with self.subTest(changes=changes):
                 with self.assertRaisesRegex(ValueError, "exactly one day"):
                     self.convert(**changes)
+
+    def test_english_month_punctuation_and_optional_comma(self):
+        for date in ("Dec. 31", "Dec. 31, 2025", "Dec 31 2025", "31 Dec. 2025"):
+            with self.subTest(date=date):
+                frame, info = self.convert(
+                    first_date=date, period="Dec. 20 2025 to Jan. 15, 2026",
+                )
+                self.assertEqual(frame["Date"].tolist(), ["2025-12-31", "2026-01-08"])
+                self.assertTrue(engine.reconcile_statement(frame, info)[1])

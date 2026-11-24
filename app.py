@@ -3140,12 +3140,16 @@ ENGLISH_STATEMENT_MONTH = (
 
 
 def universal_statement_date(value, declared_format=None):
-    formats = ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%d %B %Y", "%b %d, %Y", "%B %d, %Y")
+    normalized = re.sub(rf"\b({ENGLISH_STATEMENT_MONTH})\.(?=\s)", r"\1", value, flags=re.IGNORECASE)
+    formats = (
+        "%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%d %B %Y",
+        "%b %d, %Y", "%B %d, %Y", "%b %d %Y", "%B %d %Y",
+    )
     if declared_format:
         formats += (declared_format,)
     for fmt in formats:
         try:
-            return datetime.strptime(value, fmt).date().isoformat()
+            return datetime.strptime(normalized, fmt).date().isoformat()
         except ValueError:
             continue
     french_months = (
@@ -3163,8 +3167,8 @@ def universal_statement_date(value, declared_format=None):
 
 
 def universal_transaction_date(value, declared_format, period):
-    day_first = re.fullmatch(r"\d{1,2}\s+[^\W\d_]+", value)
-    month_first = re.fullmatch(rf"{ENGLISH_STATEMENT_MONTH}\s+\d{{1,2}}", value, re.IGNORECASE)
+    day_first = re.fullmatch(r"\d{1,2}\s+[^\W\d_]+\.?", value)
+    month_first = re.fullmatch(rf"{ENGLISH_STATEMENT_MONTH}\.?\s+\d{{1,2}}", value, re.IGNORECASE)
     numeric = re.fullmatch(r"\d{1,2}([/-])\d{1,2}", value)
     if not (day_first or month_first or numeric):
         return universal_statement_date(value, declared_format)
@@ -3663,7 +3667,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
                         header_ends = [start + len(column) for start, column in zip(header_starts, columns)]
                     continue
                 if not re.match(
-                    rf"(?:\d{{1,4}}[-/. ]|{ENGLISH_STATEMENT_MONTH}\s+\d{{1,2}}(?:,|(?= {{2,}}|\t)))",
+                    rf"(?:\d{{1,4}}[-/. ]|{ENGLISH_STATEMENT_MONTH}\.?\s+\d{{1,2}}(?:,| \d{{4}}(?= {{2,}}|\t)|(?= {{2,}}|\t)))",
                     line, re.IGNORECASE,
                 ):
                     if (last_transaction_line == line_number - 1 and header_starts is not None
