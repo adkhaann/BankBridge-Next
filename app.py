@@ -3983,9 +3983,16 @@ def reconcile_universal_transactions(frame, info):
     balances = info.get("running_balances", [])
     if balances:
         calculated_balances = (control["opening"] + changes.cumsum()).round(2)
-        matches = sum(expected == actual for expected, actual in zip(balances, calculated_balances))
+        comparisons = list(zip(balances, calculated_balances))
+        matches = sum(expected == actual for expected, actual in comparisons)
         rows.append(("Running balances matched", len(balances), matches, "n"))
         rows.append(("Rows with printed balances", len(balances), len(frame), "n"))
+        source_pages = info.get("source_pages", [])
+        if len(source_pages) == len(balances) == len(frame):
+            for (expected, actual), page in zip(comparisons, source_pages):
+                if expected != actual:
+                    rows.append((f"First running balance mismatch on page {page}", expected, actual, "$"))
+                    break
 
     dates = pd.to_datetime(frame["Date"], format="%Y-%m-%d", errors="coerce")
     if info.get("period"):

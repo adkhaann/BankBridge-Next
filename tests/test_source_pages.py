@@ -248,6 +248,9 @@ class SourcePageTests(unittest.TestCase):
             }
             ui.run()
             self.assertFalse(ui.get("download_button"))
+            self.assertTrue(any(
+                "First running balance mismatch on page 2" in item.value for item in ui.markdown
+            ))
             self.assertIn("Transaction rows · 1 edited · 0 added · 0 removed", [item.value for item in ui.caption])
             ui.checkbox(key="bb_preview_controls_1").check().run()
             self.assertEqual(ui.selectbox(key="bb_preview_page_controls_1").value, 4)

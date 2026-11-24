@@ -105,6 +105,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - The transaction editor shows counts of edited, added, and removed rows and can reset edits to the original extracted rows without re-reading the PDF. A UI regression verifies reconciliation and export availability after resetting a mismatched edit.
 
+- Reconciliation detail shows the first running-balance mismatch with the printed and calculated values and original PDF page when the reviewed row count still matches the printed balance count.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. The user confirmed a synthetic RBC Business Chequing QBO import and repeat-import check. Other QBO mappings remain unverified in QuickBooks Desktop. IIF can be generated for every reconciled CAD deposit or card layout shown below, including experimental layouts.
