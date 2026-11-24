@@ -206,12 +206,13 @@ def step(n, title, subtitle=None, done=False):
     )
 
 
-def show_statement_preview(uploaded, key, *, initial_page=None):
-    if not st.checkbox("Preview original PDF", key=f"bb_preview_{key}"):
+def show_statement_preview(uploaded, key, *, initial_page=None, printed_values=None):
+    toggle_label = "Preview printed values in PDF" if printed_values else "Preview original PDF"
+    if not st.checkbox(toggle_label, key=f"bb_preview_{key}"):
         return
     pdf_bytes = uploaded.getvalue()
     try:
-        pages = range(1, eng.statement_page_count(pdf_bytes) + 1)
+        pages = sorted(printed_values) if printed_values else range(1, eng.statement_page_count(pdf_bytes) + 1)
         if not pages:
             st.warning("The uploaded PDF has no pages to display.")
             return
@@ -453,6 +454,8 @@ else:
                     st.caption("Printed statement values by PDF page")
                     for page, labels in sorted(pages_by_number.items()):
                         st.caption(f"PDF page {page} · {', '.join(labels)}")
+                    if uploaded is not None:
+                        show_statement_preview(uploaded, f"controls_{ss['bb_run']}", printed_values=pages_by_number)
                 if rec["details"]:
                     st.write("")
                     st.caption("Statement summary")
