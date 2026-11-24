@@ -151,3 +151,28 @@ class SourcePageTests(unittest.TestCase):
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertFalse(ui.error)
             self.assertTrue(ui.get("download_button"))
+
+    def test_textless_page_offers_an_explicit_local_ocr_retry(self):
+        fixture = test_conversion.UniversalDepositTests
+        pdf = test_conversion.statement_pdf(fixture.first, [])
+        uploaded = SimpleNamespace(name="scan.pdf", file_id="scan", getvalue=lambda: pdf)
+        app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
+        extract = engine.extract_universal_transactions
+
+        def simulated_ocr(data, bank, account_type, *, use_ocr=False):
+            return extract(multi_page_statement() if use_ocr else data, bank, account_type)
+
+        with patch("streamlit.file_uploader", return_value=uploaded), patch(
+            "engine.extract_universal_transactions", side_effect=simulated_ocr,
+        ) as parser:
+            ui = AppTest.from_file(str(app_path)).run()
+            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
+            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
+            next(button for button in ui.button if button.label == "Convert statement").click().run()
+            self.assertFalse(ui.get("download_button"))
+            self.assertFalse(parser.call_args.kwargs["use_ocr"])
+            next(button for button in ui.button if button.label == "Retry with local OCR").click().run()
+            self.assertTrue(parser.call_args.kwargs["use_ocr"])
+            self.assertTrue(ui.checkbox(key="bb_use_ocr").value)
+            self.assertFalse(ui.error)
+            self.assertTrue(ui.get("download_button"))

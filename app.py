@@ -34,6 +34,10 @@ class StatementFileError(ValueError):
     """An uploaded file cannot be opened for statement review."""
 
 
+class StatementNeedsOcr(ValueError):
+    """A statement page has no readable text and OCR is disabled."""
+
+
 def open_statement_pdf(pdf_bytes):
     if not pdf_bytes:
         raise StatementFileError("The uploaded file is empty. Download the statement again and upload the new PDF.")
@@ -3633,7 +3637,7 @@ def extract_universal_transactions(pdf_bytes, bank, account_type, *, use_ocr=Fal
             lines = page.get_text(sort=True).splitlines()
             if not any(line.strip() for line in lines):
                 if not use_ocr:
-                    raise ValueError(f"Page {page.number + 1} has no readable text. Enable local OCR or use a text PDF.")
+                    raise StatementNeedsOcr(f"Page {page.number + 1} has no readable text. Enable local OCR or use a text PDF.")
                 try:
                     text_page = page.get_textpage_ocr(dpi=300, full=True)
                 except (RuntimeError, ValueError) as error:
