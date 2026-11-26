@@ -2467,6 +2467,8 @@ def make_qbo(df, info, account_type):
     """Route QBO only when the statement provides the required account data."""
     if info.get("td_easyweb"):
         return None, "QBO is unavailable for TD EasyWeb activity printouts."
+    if info.get("card_network") == "Visa" and info.get("bank") == "RBC Royal Bank":
+        return None, "RBC Visa requires a verified Web Connect mapping."
     if info.get("universal") or info.get("unclassified_account"):
         return None, "QBO requires a verified institution and account mapping."
     currency = info.get("currency")
@@ -3307,6 +3309,20 @@ STATEMENT_PRODUCT_HEADINGS = {
 }
 
 
+# Search header lines only and require a complete product heading.
+STATEMENT_CARD_HEADINGS = (
+    (r"rbc (?:royal bank )?(?:(?:avion|ion|rewards\+?|cash back|signature rewards) )?"
+     r"(?:(?:platinum|infinite|infinite privilege|gold) )?visa"
+     r"(?: (?:platinum|infinite|infinite privilege|gold))?", "RBC Royal Bank", "Visa"),
+    (r"rbc (?:royal bank )?(?:cash back )?mastercard", "RBC Royal Bank", "Mastercard"),
+    (r"cibc (?:(?:aventura|aeroplan|dividend|select|classic) )?"
+     r"(?:platinum |infinite |gold )?visa(?: (?:platinum|infinite|infinite privilege|gold))?",
+     "CIBC", "Visa"),
+    (r"bmo (?:bank of montreal )?(?:(?:cashback|air miles|eclipse|ascend|preferred rate)"
+     r"(?: world elite| world)? )?(?:mastercard|mastercard statement)", "BMO Bank of Montreal", "Mastercard"),
+)
+
+
 def detect_statement_selection(pdf_bytes):
     """Recognize explicit metadata and exact headings on the first page."""
     with open_statement_pdf(pdf_bytes) as document:
@@ -3339,9 +3355,25 @@ def detect_statement_selection(pdf_bytes):
             bank, account = product
             matches["bank"].add(bank)
             matches["account type"].add(account)
+    card_networks = set()
+    for line in lines[:24]:
+        heading = line.translate(str.maketrans("", "", "®™")).strip().removesuffix(" statement")
+        for pattern, bank, network in STATEMENT_CARD_HEADINGS:
+            if re.fullmatch(pattern, heading):
+                matches["bank"].add(bank)
+                card_networks.add(network)
+        if heading in ("visa", "mastercard") and matches["bank"]:
+            card_networks.add(heading.title())
     if len(matches["bank"]) > 1:
         return {}
-    return {key: next(iter(values)) for key, values in matches.items() if len(values) == 1}
+    if card_networks and not matches["account type"].intersection(CREDIT_CARD_SELECTIONS):
+        matches["account type"].add("Credit Card")
+    if len(card_networks) > 1:
+        return {}
+    result = {key: next(iter(values)) for key, values in matches.items() if len(values) == 1}
+    if result.get("bank") == "RBC Royal Bank" and card_networks == {"Visa"}:
+        result["card network"] = "Visa"
+    return result
 
 
 def statement_page_count(pdf_bytes):

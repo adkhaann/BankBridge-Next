@@ -7,10 +7,11 @@ import fitz
 import engine
 
 
-def rbc_mastercard_statement(include_purchase_amount=True):
+def rbc_mastercard_statement(include_purchase_amount=True, *, heading="RBC Cash Back Mastercard"):
     with fitz.open() as document:
         page = document.new_page()
         page.insert_text((32, 42), "\n".join([
+            heading,
             "STATEMENT FROM DEC 29 TO JAN 31, 2026",
             "Account Number: 4321 XXXX XXXX 1234",
             "Previous Statement Balance $100.00",

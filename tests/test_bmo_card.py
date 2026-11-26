@@ -11,6 +11,7 @@ def bmo_mastercard_statement():
     with fitz.open() as document:
         page = document.new_page()
         page.insert_text((32, 42), "\n".join([
+            "BMO CashBack World Elite Mastercard",
             "Statement date Jan. 31, 2026",
             "Account number: 4321 XXXX XXXX 1234",
             "Previous total balance $100.00",

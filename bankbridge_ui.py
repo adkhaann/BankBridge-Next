@@ -353,6 +353,8 @@ if go and uploaded is not None and bank and account_type and extractor is not No
     with st.spinner("Reading statement…"):
         try:
             df, info = extractor(uploaded.getvalue())
+            if network := detected.get("card network"):
+                info = {**info, "card_network": network}
             ss["bb_df"], ss["bb_info"] = df, info
             ss["bb_bank_done"], ss["bb_type_done"] = bank, account_type
             ss["bb_file_done"] = uploaded.name

@@ -8,6 +8,9 @@ from streamlit.testing.v1 import AppTest
 from test_td_deposit import td_statement
 from test_rbc_deposit import rbc_statement
 from test_td_card import td_card_statement
+from test_rbc_card import rbc_mastercard_statement
+from test_bmo_card import bmo_mastercard_statement
+from test_cibc_credit_card import cibc_visa_statement
 from test_conversion import statement_pdf
 
 
@@ -83,3 +86,22 @@ class StatementReviewTests(unittest.TestCase):
                 downloads = [button.label for button in ui.get("download_button")]
                 self.assertEqual("Download CSV" in downloads, printed_debit == "10.00")
                 self.assertNotIn("Download QBO", downloads)
+
+    def test_branded_card_headings_reach_conversion(self):
+        path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
+        for bank, fixture in (
+            ("RBC Royal Bank", lambda: rbc_mastercard_statement(heading="RBC Avion Visa Infinite")),
+            ("BMO Bank of Montreal", bmo_mastercard_statement),
+            ("CIBC", cibc_visa_statement),
+        ):
+            with self.subTest(bank=bank):
+                uploaded = SimpleNamespace(name="card.pdf", file_id="card", getvalue=fixture)
+                with patch("streamlit.file_uploader", return_value=uploaded):
+                    ui = AppTest.from_file(str(path)).run()
+                    self.assertIn(f"Using {bank} · Credit Card", [caption.value for caption in ui.caption])
+                    next(button for button in ui.button if button.label == "Convert statement").click().run()
+                self.assertFalse(ui.exception)
+                self.assertIn("Download CSV", [button.label for button in ui.get("download_button")])
+                if bank == "RBC Royal Bank":
+                    self.assertIn("RBC Visa requires a verified Web Connect mapping.",
+                                  [caption.value for caption in ui.caption])

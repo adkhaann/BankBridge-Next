@@ -210,6 +210,17 @@ class StatementSelectionTests(unittest.TestCase):
         page = statement_pdf(["2026-01-05 TD Business Cash Back Visa 25.00"])
         self.assertEqual(engine.detect_statement_selection(page), {})
 
+    def test_branded_card_heading_requires_header_evidence(self):
+        self.assertEqual(engine.detect_statement_selection(statement_pdf([
+            "2026-01-05 RBC Visa 25.00", "Visa",
+        ])), {})
+        self.assertEqual(engine.detect_statement_selection(statement_pdf([
+            "Bank: CIBC", "BMO CashBack Mastercard",
+        ])), {})
+        self.assertEqual(engine.detect_statement_selection(statement_pdf([
+            "RBC Royal Bank", "Visa Statement",
+        ])), {"bank": "RBC Royal Bank", "account type": "Credit Card", "card network": "Visa"})
+
     def test_does_not_guess_unknown_or_conflicting_selections(self):
         result = engine.detect_statement_selection(statement_pdf([
             "Synthetic Bank", "Account type: Personal Savings", "Account type: Business Savings",

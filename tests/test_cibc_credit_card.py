@@ -9,7 +9,7 @@ from test_conversion import statement_pdf
 def cibc_visa_statement(card="4321 XXXX XXXX 1234", closing="118.00", refund="5.00 CR"):
     return statement_pdf(
         [
-            "Visa", "Your account at a glance", "Statement Date January 31, 2026",
+            "CIBC Dividend Visa Infinite", "Visa", "Your account at a glance", "Statement Date January 31, 2026",
             f"Account number {card}", "Previous balance", "100.00",
             "Total charges", "33.00", "Total credits", "15.00 CR",
             "Total balance", closing,
