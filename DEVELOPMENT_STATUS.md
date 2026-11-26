@@ -119,6 +119,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Windows now opens the embedded WebView2 window in private mode by default. The standalone Edge fallback requests sync and implicit sign-in be disabled. Test coverage verifies the default window selection. The reported first-launch behaviour still needs an on-device check.
 
+- The Windows desktop shows only Auto-Detect for Institution and no account-type selector. It displays detected details and offers a PDF preview when detection is incomplete. This limits desktop conversion to PDFs with detectable statement details.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. The user confirmed a synthetic RBC Business Chequing QBO import and repeat-import check. Other QBO mappings remain unverified in QuickBooks Desktop. IIF can be generated for every reconciled CAD deposit or card layout shown below, including experimental layouts.

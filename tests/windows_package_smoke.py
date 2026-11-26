@@ -16,12 +16,14 @@ from test_td_easyweb import easyweb_printout
 from test_universal_card import card_statement
 
 
-def convert_pdf(page, name, data):
+def convert_pdf(page, name, data, *, before_convert=None):
     page.locator('input[type="file"]').set_input_files({
         "name": name,
         "mimeType": "application/pdf",
         "buffer": data,
     })
+    if before_convert:
+        before_convert()
     page.get_by_role("button", name="Convert statement", exact=True).click()
 
 
@@ -74,12 +76,10 @@ def check_iif_exports(page):
         raise RuntimeError("The downloaded EasyWeb IIF did not contain the expected balanced postings.")
 
     page.reload()
-    page.get_by_role("combobox", name="Institution", exact=True).click()
-    page.get_by_role("option", name="TD Canada Trust", exact=True).click()
-    page.get_by_role("combobox", name="Account type", exact=True).click()
-    page.get_by_role("option", name="Credit Card", exact=True).click()
-    page.get_by_text("Try experimental statement parser", exact=True).click()
-    convert_pdf(page, "Synthetic-Credit-Card.pdf", card_statement())
+    def enable_experimental_parser():
+        page.get_by_text("Try experimental statement parser", exact=True).click()
+
+    convert_pdf(page, "Synthetic-Credit-Card.pdf", card_statement(), before_convert=enable_experimental_parser)
     if download_iif_postings(page, "QuickBooks credit card account", "Visa") != [
         ["GENERAL JOURNAL", "01/05/2026", "Visa", "-30.00"],
         ["GENERAL JOURNAL", "01/05/2026", "Uncategorized Expenses", "30.00"],

@@ -12,6 +12,8 @@ from test_conversion import statement_pdf
 def card_statement(closing="110.00", *, payment="20.00", charge="30.00"):
     return statement_pdf(
         [
+            "Bank: TD Canada Trust",
+            "Account type: Credit Card",
             "Previous balance: 100.00",
             f"New balance: {closing}",
             "Total charges: 30.00",
@@ -64,8 +66,6 @@ class UniversalCardTests(unittest.TestCase):
         app = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with patch("streamlit.file_uploader", return_value=pdf):
             ui = AppTest.from_file(str(app)).run()
-            ui.selectbox(key="bb_bank").set_value("TD Canada Trust")
-            ui.selectbox(key="bb_type").set_value("Credit Card").run()
             next(box for box in ui.checkbox if box.label == "Try experimental statement parser").check().run()
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertFalse(ui.exception)

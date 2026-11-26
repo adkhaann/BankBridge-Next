@@ -27,12 +27,13 @@ class StatementReviewTests(unittest.TestCase):
                     self.assertIn(result_key, ui.session_state)
                     self.assertTrue(ui.get("download_button"))
 
-                    ui.selectbox[1].set_value("Credit Card").run()
-                    self.assertNotIn(result_key, ui.session_state)
-                    self.assertFalse(ui.get("download_button"))
-                    ui.selectbox[1].set_value("Business Chequing").run()
-                    convert().click().run()
-                    self.assertIn(result_key, ui.session_state)
+                    if filename == "app.py":
+                        ui.selectbox[1].set_value("Credit Card").run()
+                        self.assertNotIn(result_key, ui.session_state)
+                        self.assertFalse(ui.get("download_button"))
+                        ui.selectbox[1].set_value("Business Chequing").run()
+                        convert().click().run()
+                        self.assertIn(result_key, ui.session_state)
 
                     uploader.return_value = replacement
                     ui.run()
@@ -51,7 +52,8 @@ class StatementReviewTests(unittest.TestCase):
         path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with patch("streamlit.file_uploader", return_value=uploaded) as uploader:
             ui = AppTest.from_file(str(path)).run()
-            self.assertEqual(ui.selectbox(key="bb_bank").value, "Auto-Detect (All Canadian Banks)")
+            self.assertEqual(ui.text_input[0].value, "Auto-Detect (All Canadian Banks)")
+            self.assertFalse(ui.selectbox)
             self.assertIn("Using TD Canada Trust · Business Credit Card", [c.value for c in ui.caption])
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertEqual(ui.session_state["bb_type_done"], "Business Credit Card")
@@ -63,5 +65,4 @@ class StatementReviewTests(unittest.TestCase):
             ui.run()
             self.assertFalse(ui.get("download_button"))
             self.assertTrue(next(button for button in ui.button if button.label == "Convert statement").disabled)
-            self.assertIn("Choose the institution and account type manually to continue.",
-                          [c.value for c in ui.caption])
+            self.assertIn("Could not detect the institution and account type.", ui.warning[0].value)

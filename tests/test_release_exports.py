@@ -38,10 +38,13 @@ class ReleaseExportTests(unittest.TestCase):
         for (bank, account_type), (fixture, qbo) in fixtures.items():
             with self.subTest(bank=bank, account=account_type):
                 uploaded = SimpleNamespace(name="sample.pdf", file_id="release-sample", getvalue=fixture)
-                with patch("streamlit.file_uploader", return_value=uploaded):
+                with (
+                    patch("streamlit.file_uploader", return_value=uploaded),
+                    patch.object(engine, "detect_statement_selection", return_value={
+                        "bank": bank, "account type": account_type,
+                    }),
+                ):
                     ui = AppTest.from_file(str(app)).run()
-                    ui.selectbox(key="bb_bank").set_value(bank)
-                    ui.selectbox(key="bb_type").set_value(account_type).run()
                     next(button for button in ui.button if button.label == "Convert statement").click().run()
                     self.assertFalse(ui.exception)
                     self.assertFalse(ui.error)

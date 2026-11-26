@@ -271,13 +271,8 @@ html_block(
 )
 
 ss = st.session_state
-banks = list(eng.CANADIAN_BANKS)
-types = list(eng.ACCOUNT_TYPES)
 
 left, right = st.columns(2, gap="medium")
-
-auto_bank = "Auto-Detect (All Canadian Banks)"
-auto_type = "Auto-Detect"
 
 with right:
     with st.container(key="card_upload"):
@@ -300,12 +295,10 @@ detected = ss.get("bb_detection", {})
 
 with left:
     with st.container(key="card_setup"):
-        step(1, "Statement type", "Use automatic detection or choose the statement details manually.")
-        c1, c2 = st.columns(2)
-        selected_bank = c1.selectbox("Institution", [auto_bank, *banks], key="bb_bank")
-        selected_type = c2.selectbox("Account type", [auto_type, *types], key="bb_type")
-        bank = detected.get("bank") if selected_bank == auto_bank else selected_bank
-        account_type = detected.get("account type") if selected_type == auto_type else selected_type
+        step(1, "Statement type", "BankBridgeNext reads these details from the PDF.")
+        st.text_input("Institution", value="Auto-Detect (All Canadian Banks)", disabled=True)
+        bank = detected.get("bank")
+        account_type = detected.get("account type")
         if bank and account_type:
             st.caption(f"Using {bank} · {account_type}")
         dedicated = eng.get_dedicated_extractor(bank, account_type)
@@ -334,7 +327,8 @@ with upload_actions:
             matched = " · ".join(detail for detail in (bank, account_type) if detail)
             if matched:
                 st.caption(f"Detected {matched}.")
-            st.caption(f"Choose the {missing} manually to continue.")
+            st.warning(f"Could not detect the {missing}. Try a PDF with a readable first page.")
+            show_statement_preview(uploaded, "undetected")
     go = st.button("Convert statement", type="primary", width="stretch",
                    disabled=(uploaded is None or not bank or not account_type or extractor is None
                              or bool(ss.get("bb_detection_error"))))
@@ -371,7 +365,7 @@ elif ss.get("bb_error"):
     if ss.get("bb_needs_ocr"):
         st.button("Retry with local OCR", on_click=retry_with_local_ocr)
     else:
-        st.caption("Check that the bank and account type match the PDF, then try again.")
+        st.caption("Check the original PDF for the statement details and transaction layout.")
     if uploaded is not None:
         error_page = re.search(r"(?:\bPDF page|\bon page|^Page) ([0-9]{1,6})\b", ss["bb_error"], re.IGNORECASE)
         show_statement_preview(

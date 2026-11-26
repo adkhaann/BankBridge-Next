@@ -13,9 +13,15 @@ from streamlit.testing.v1 import AppTest
 import test_conversion
 
 
+def detected_statement_pdf(first, *pages):
+    return test_conversion.statement_pdf(
+        ["Bank: Other Canadian Bank / Credit Union", "Account type: Personal Savings", *first], *pages,
+    )
+
+
 def multi_page_statement():
     fixture = test_conversion.UniversalDepositTests
-    return test_conversion.statement_pdf(fixture.first, fixture.second)
+    return detected_statement_pdf(fixture.first, fixture.second)
 
 
 class SourcePageTests(unittest.TestCase):
@@ -34,8 +40,6 @@ class SourcePageTests(unittest.TestCase):
         app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with patch("streamlit.file_uploader", return_value=uploaded):
             ui = AppTest.from_file(str(app_path)).run()
-            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
-            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertFalse(ui.exception)
             self.assertEqual(ui.dataframe[0].value["SourcePage"].tolist(), [1, 2])
@@ -67,14 +71,12 @@ class SourcePageTests(unittest.TestCase):
 
     def test_failed_conversion_allows_preview_without_enabling_exports(self):
         def unfamiliar_statement():
-            return test_conversion.statement_pdf(["Unfamiliar summary"], ["Unfamiliar transaction layout"])
+            return detected_statement_pdf(["Unfamiliar summary"], ["Unfamiliar transaction layout"])
 
         uploaded = SimpleNamespace(name="unfamiliar.pdf", file_id="unfamiliar", getvalue=unfamiliar_statement)
         app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with patch("streamlit.file_uploader", return_value=uploaded), patch("streamlit.image") as preview:
             ui = AppTest.from_file(str(app_path)).run()
-            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
-            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertTrue(ui.error)
             self.assertFalse(ui.get("download_button"))
@@ -94,12 +96,10 @@ class SourcePageTests(unittest.TestCase):
             ([], "Page 2 has no readable text"),
         ):
             with self.subTest(error=error):
-                pdf = test_conversion.statement_pdf(fixture.first, second)
+                pdf = detected_statement_pdf(fixture.first, second)
                 uploaded = SimpleNamespace(name="invalid.pdf", file_id="invalid", getvalue=lambda: pdf)
                 with patch("streamlit.file_uploader", return_value=uploaded), patch("streamlit.image") as preview:
                     ui = AppTest.from_file(str(app_path)).run()
-                    ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
-                    ui.selectbox(key="bb_type").set_value("Personal Savings").run()
                     next(button for button in ui.button if button.label == "Convert statement").click().run()
                     self.assertIn(error, ui.error[0].value)
                     ui.checkbox(key="bb_preview_failed").check().run()
@@ -142,8 +142,6 @@ class SourcePageTests(unittest.TestCase):
         app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with patch("streamlit.file_uploader", return_value=uploaded) as uploader:
             ui = AppTest.from_file(str(app_path)).run()
-            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
-            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
             self.assertTrue(next(button for button in ui.button if button.label == "Convert statement").disabled)
             self.assertIn("The uploaded file is empty", ui.error[0].value)
             self.assertNotIn("account type", ui.error[0].value)
@@ -161,7 +159,7 @@ class SourcePageTests(unittest.TestCase):
 
     def test_textless_page_offers_an_explicit_local_ocr_retry(self):
         fixture = test_conversion.UniversalDepositTests
-        pdf = test_conversion.statement_pdf(fixture.first, [])
+        pdf = detected_statement_pdf(fixture.first, [])
         uploaded = SimpleNamespace(name="scan.pdf", file_id="scan", getvalue=lambda: pdf)
         app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         extract = engine.extract_universal_transactions
@@ -176,8 +174,6 @@ class SourcePageTests(unittest.TestCase):
             "engine.extract_universal_transactions", side_effect=simulated_ocr,
         ) as parser:
             ui = AppTest.from_file(str(app_path)).run()
-            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
-            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertFalse(ui.get("download_button"))
             self.assertFalse(parser.call_args.kwargs["use_ocr"])
@@ -194,7 +190,7 @@ class SourcePageTests(unittest.TestCase):
 
     def test_missing_ocr_setup_keeps_the_affected_page_available_for_preview(self):
         fixture = test_conversion.UniversalDepositTests
-        pdf = test_conversion.statement_pdf(fixture.first, [])
+        pdf = detected_statement_pdf(fixture.first, [])
         uploaded = SimpleNamespace(name="scan.pdf", file_id="missing-ocr", getvalue=lambda: pdf)
         app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with (
@@ -203,8 +199,6 @@ class SourcePageTests(unittest.TestCase):
             patch.object(fitz.Page, "get_textpage_ocr", side_effect=RuntimeError("missing tessdata")),
         ):
             ui = AppTest.from_file(str(app_path)).run()
-            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
-            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             next(button for button in ui.button if button.label == "Retry with local OCR").click().run()
             self.assertIn("Local OCR is unavailable on PDF page 2", ui.error[0].value)
@@ -216,7 +210,7 @@ class SourcePageTests(unittest.TestCase):
 
     def test_successful_preview_includes_pages_without_transactions(self):
         fixture = test_conversion.UniversalDepositTests
-        pdf = test_conversion.statement_pdf(
+        pdf = detected_statement_pdf(
             fixture.first[:-2], fixture.first[-2:], [*fixture.second, "Closing balance: 115.00"],
             ["Balance forward: 115.00"],
         )
@@ -228,8 +222,6 @@ class SourcePageTests(unittest.TestCase):
         app_path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with patch("streamlit.file_uploader", return_value=uploaded), patch("streamlit.image") as preview:
             ui = AppTest.from_file(str(app_path)).run()
-            ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
-            ui.selectbox(key="bb_type").set_value("Personal Savings").run()
             next(button for button in ui.button if button.label == "Convert statement").click().run()
             self.assertEqual(ui.dataframe[0].value["SourcePage"].tolist(), [2, 3])
             captions = [caption.value for caption in ui.caption]

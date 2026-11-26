@@ -106,7 +106,7 @@ class TdEasyWebTests(unittest.TestCase):
                         self.assertFalse(ui.get("download_button"))
                         continue
                     self.assertTrue(ui.get("download_button")[-1].proto.disabled)
-                    bank, = ui.text_input
+                    bank = next(field for field in ui.text_input if field.label == "QuickBooks bank account")
                     bank.set_value("Bank").run()
                     self.assertTrue(ui.get("download_button")[-1].proto.disabled)
                     next(box for box in ui.checkbox if "Uncategorized Expenses" in box.label).check().run()
