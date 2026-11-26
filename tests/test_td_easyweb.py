@@ -104,21 +104,11 @@ class TdEasyWebTests(unittest.TestCase):
                         self.assertFalse(ui.get("download_button"))
                         continue
                     self.assertTrue(ui.get("download_button")[-1].proto.disabled)
-                    bank, clearing = ui.text_input
-                    bank.set_value("Bank")
-                    clearing.set_value("").run()
+                    bank, = ui.text_input
+                    bank.set_value("Bank").run()
                     self.assertTrue(ui.get("download_button")[-1].proto.disabled)
-                    next(box for box in ui.checkbox if "all QuickBooks accounts" in box.label).check().run()
+                    next(box for box in ui.checkbox if "Ask My Accountant" in box.label).check().run()
                     self.assertFalse(ui.exception)
                     button = ui.get("download_button")[-1]
                     self.assertEqual(button.label, "Download IIF for QuickBooks Desktop")
-                    self.assertTrue(button.proto.disabled)
-                    category_editor = next(table for table in ui.dataframe if "Category" in table.value)
-                    category_key = category_editor.proto.id.split("-", 2)[-1]
-                    ui.session_state[category_key] = {
-                        "edited_rows": {0: {"Category": "Bank Fees"}, 1: {"Category": "Sales"}},
-                        "added_rows": [], "deleted_rows": [],
-                    }
-                    ui.run()
-                    self.assertFalse(ui.exception)
-                    self.assertFalse(ui.get("download_button")[-1].proto.disabled)
+                    self.assertFalse(button.proto.disabled)

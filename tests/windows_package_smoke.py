@@ -59,14 +59,10 @@ def download_iif_postings(page, register_label, register_name):
     page.get_by_text("QuickBooks Desktop IIF", exact=True).click()
     button_name = "Download IIF for QuickBooks Desktop"
     expect(page.get_by_role("button", name=button_name)).to_be_disabled()
-    for label, account in (
-        (register_label, register_name),
-        ("QuickBooks clearing account", "Bank Imports Clearing"),
-    ):
-        field = page.get_by_role("textbox", name=label)
-        field.fill(account)
-        field.press("Enter")
-    page.get_by_text("I confirmed the statement and all QuickBooks accounts used here are in CAD.", exact=True).click()
+    field = page.get_by_role("textbox", name=register_label)
+    field.fill(register_name)
+    field.press("Enter")
+    page.get_by_role("checkbox", name=re.compile("Ask My Accountant")).check()
     rows = download_path(page, button_name).read_text(encoding="ascii").splitlines()
     return [line.split("\t")[1:5] for line in rows if line.startswith(("TRNS\t", "SPL\t"))]
 
@@ -75,9 +71,9 @@ def check_iif_exports(page):
     convert_pdf(page, "Synthetic-TD-EasyWeb.pdf", easyweb_printout())
     if download_iif_postings(page, "QuickBooks bank account", "TD Chequing") != [
         ["CHECK", "01/05/2026", "TD Chequing", "-10.00"],
-        ["CHECK", "01/05/2026", "Bank Imports Clearing", "10.00"],
+        ["CHECK", "01/05/2026", "Ask My Accountant", "10.00"],
         ["DEPOSIT", "01/08/2026", "TD Chequing", "25.00"],
-        ["DEPOSIT", "01/08/2026", "Bank Imports Clearing", "-25.00"],
+        ["DEPOSIT", "01/08/2026", "Ask My Accountant", "-25.00"],
     ]:
         raise RuntimeError("The downloaded EasyWeb IIF did not contain the expected balanced postings.")
 
@@ -88,9 +84,9 @@ def check_iif_exports(page):
     convert_pdf(page, "Synthetic-Credit-Card.pdf", card_statement())
     if download_iif_postings(page, "QuickBooks credit card account", "Visa") != [
         ["GENERAL JOURNAL", "01/05/2026", "Visa", "-30.00"],
-        ["GENERAL JOURNAL", "01/05/2026", "Bank Imports Clearing", "30.00"],
+        ["GENERAL JOURNAL", "01/05/2026", "Ask My Accountant", "30.00"],
         ["GENERAL JOURNAL", "01/08/2026", "Visa", "20.00"],
-        ["GENERAL JOURNAL", "01/08/2026", "Bank Imports Clearing", "-20.00"],
+        ["GENERAL JOURNAL", "01/08/2026", "Ask My Accountant", "-20.00"],
     ]:
         raise RuntimeError("The downloaded card IIF did not contain the expected balanced postings.")
 

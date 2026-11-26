@@ -8,7 +8,6 @@ WHEN YOU ADD A NEW BANK TO app.py:
   1. add the combination and extractor to DEDICATED_EXTRACTORS in app.py
   2. if it has its own QBO generator, add it in make_qbo() in app.py
 """
-import hashlib
 import html
 import os
 import re
@@ -22,6 +21,7 @@ import streamlit as st
 import engine as eng
 
 APP_VERSION = "1.0"
+IIF_HOLDING_ACCOUNT = "Ask My Accountant"
 
 
 def installed_build_id():
@@ -566,46 +566,25 @@ else:
                             "Import into a test company first and check for duplicates before importing.")
                     st.caption(
                         f"{rec['count']} transactions · {money(rec['debit_total'])} debits · "
-                        f"{money(rec['credit_total'])} credits. Enter existing QuickBooks account names, "
-                        "including any parent accounts."
+                        f"{money(rec['credit_total'])} credits. Enter the full name of your existing register."
                     )
                     iif_key = f"bb_iif_{ss['bb_run']}"
                     register_label = ("QuickBooks credit card account" if info["statement_type"] == "credit_card"
                                       else "QuickBooks bank account")
                     register_account = st.text_input(register_label, key=f"{iif_key}_register")
-                    clearing_account = st.text_input(
-                        "QuickBooks clearing account", key=f"{iif_key}_clearing",
-                        help="Optional if every transaction has a Category. Blank categories use this account.",
-                    )
-                    st.caption("Enter the QuickBooks account in Category for each transaction. "
-                               "Leave Category blank to use the clearing account.")
-                    iif_review = edited[["Date", "Description"]].assign(
-                        Bank=p_bank, Amount=(edited["Credit"] - edited["Debit"]).round(2),
-                        Source=ss["bb_file_done"], Category="",
-                    )
-                    row_hashes = pd.util.hash_pandas_object(edited).to_numpy().tobytes()
-                    review_id = hashlib.sha256(row_hashes).hexdigest()
-                    categorized = st.data_editor(
-                        iif_review, key=f"{iif_key}_categories_{review_id}",
-                        width="stretch", hide_index=True,
-                        column_order=("Date", "Bank", "Description", "Amount", "Source", "Category"),
-                        disabled=("Date", "Bank", "Description", "Amount", "Source"),
-                        column_config={
-                            "Source": st.column_config.TextColumn("Source file"),
-                            "Amount": st.column_config.NumberColumn("Amount", format="dollar"),
-                            "Category": st.column_config.TextColumn("Category", width="large"),
-                        },
+                    st.caption(
+                        f"IIF posts the other side to {IIF_HOLDING_ACCOUNT}. "
+                        "Reclassify those entries in QuickBooks after import."
                     )
                     confirmed = st.checkbox(
-                        "I confirmed the statement and all QuickBooks accounts used here are in CAD.",
+                        f"I confirmed that the statement and register use CAD and {IIF_HOLDING_ACCOUNT} is an existing CAD account.",
                         key=f"{iif_key}_confirm",
                     )
                     iif_data = None
                     if register_account.strip() and confirmed:
                         try:
                             iif_data = eng.generate_statement_iif(
-                                edited.assign(Category=categorized["Category"]),
-                                info, register_account, clearing_account,
+                                edited, info, register_account, IIF_HOLDING_ACCOUNT,
                             )
                         except ValueError as error:
                             st.warning(str(error))

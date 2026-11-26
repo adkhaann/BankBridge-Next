@@ -51,8 +51,7 @@ class ReleaseExportTests(unittest.TestCase):
                     self.assertTrue(ui.get("download_button")[-1].proto.disabled)
                     label = "QuickBooks credit card account" if account_type == "Credit Card" else "QuickBooks bank account"
                     next(field for field in ui.text_input if field.label == label).set_value("Statement Account")
-                    next(field for field in ui.text_input if field.label == "QuickBooks clearing account").set_value("Clearing")
-                    next(box for box in ui.checkbox if "all QuickBooks accounts" in box.label).check().run()
+                    next(box for box in ui.checkbox if "Ask My Accountant" in box.label).check().run()
                     self.assertFalse(ui.exception)
                     self.assertFalse(ui.get("download_button")[-1].proto.disabled)
 
