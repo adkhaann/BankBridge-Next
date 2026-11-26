@@ -51,3 +51,22 @@ class LauncherStartupTests(unittest.TestCase):
                 self.assertFalse(profiles[-1].exists())
 
         self.assertNotEqual(*profiles)
+
+    def test_default_launcher_uses_builtin_window(self):
+        engine = Mock()
+        engine.poll.return_value = None
+        with (
+            patch.dict(run_app.os.environ, {"BANKBRIDGE_WINDOW": "builtin"}) as environment,
+            patch.object(run_app, "free_port", return_value=12345),
+            patch.object(run_app, "start_engine", return_value=engine),
+            patch.object(run_app, "wait_until_ready", return_value=True),
+            patch.object(run_app, "open_with_webview", return_value="ok") as builtin,
+            patch.object(run_app, "open_with_edge") as edge,
+            patch.object(run_app, "log"),
+        ):
+            environment.pop("BANKBRIDGE_WINDOW")
+            run_app.main()
+
+        builtin.assert_called_once_with(12345, engine)
+        edge.assert_not_called()
+        engine.terminate.assert_called_once()

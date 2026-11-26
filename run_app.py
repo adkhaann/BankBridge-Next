@@ -220,8 +220,7 @@ def open_with_webview(port, proc):
 
     icon = os.path.join(HERE, "assets", "bankbridge.ico")
     try:
-        webview.start(load_app, gui="edgechromium", private_mode=False,
-                      storage_path=os.path.join(DATA_DIR, "webview"),
+        webview.start(load_app, gui="edgechromium", private_mode=True,
                       icon=icon if os.path.exists(icon) else None)
     except Exception as e:
         log(f"pywebview failed: {e!r}")
@@ -264,7 +263,8 @@ def open_with_edge(url):
                 edge, f"--app={url}",
                 f"--user-data-dir={profile}", "--window-size=1320,900",
                 "--no-first-run", "--no-default-browser-check", "--disable-background-mode",
-                "--disable-features=Translate,msEdgeSidebarV2",
+                "--disable-sync",
+                "--disable-features=Translate,msEdgeSidebarV2,msImplicitSignin",
             ])
             status = edge_proc.wait()
             log(f"Edge app process exited with status {status}")
@@ -310,7 +310,7 @@ def main():
             if not wait_until_ready(port, proc):
                 log(f"Engine did not become ready on attempt {attempt}; exit status {proc.poll()}")
                 continue
-            mode = os.environ.get("BANKBRIDGE_WINDOW", "edge").lower()
+            mode = os.environ.get("BANKBRIDGE_WINDOW", "builtin").lower()
             if mode == "builtin" and open_with_webview(port, proc) == "ok":
                 return
             if open_with_edge(f"http://127.0.0.1:{port}/"):
