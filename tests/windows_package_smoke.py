@@ -66,7 +66,7 @@ def download_iif_postings(page, register_label, register_name):
         field = page.get_by_role("textbox", name=label)
         field.fill(account)
         field.press("Enter")
-    page.get_by_text("I confirmed the statement and both QuickBooks accounts use CAD.", exact=True).click()
+    page.get_by_text("I confirmed the statement and all QuickBooks accounts used here are in CAD.", exact=True).click()
     rows = download_path(page, button_name).read_text(encoding="ascii").splitlines()
     return [line.split("\t")[1:5] for line in rows if line.startswith(("TRNS\t", "SPL\t"))]
 

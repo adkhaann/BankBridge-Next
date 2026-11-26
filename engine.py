@@ -2358,7 +2358,7 @@ def reconcile_statement(frame, info):
     return reconcile_credit_card(frame, info)
 
 
-def generate_statement_iif(frame, info, register_account, clearing_account):
+def generate_statement_iif(frame, info, register_account, clearing_account=""):
     """Create a transaction-only IIF from reconciled deposit or card rows."""
     statement_type = info.get("statement_type")
     if statement_type not in ("chequing", "credit_card"):
@@ -2370,11 +2370,9 @@ def generate_statement_iif(frame, info, register_account, clearing_account):
 
     register_account = register_account.strip()
     clearing_account = clearing_account.strip()
-    for name in (register_account, clearing_account):
-        if not re.fullmatch(r'[ -!#-~]+', name):
-            raise ValueError("Enter both QuickBooks account names using printable ASCII without double quotes.")
-    if register_account.casefold() == clearing_account.casefold():
-        raise ValueError("Choose a different account for the clearing entry.")
+    account_pattern = r'[ -!#-~]+'
+    if not re.fullmatch(account_pattern, register_account):
+        raise ValueError("Enter the QuickBooks register name using printable ASCII without double quotes.")
 
     is_card = statement_type == "credit_card"
     columns = "TRNSTYPE\tDATE\tACCNT\tAMOUNT\tMEMO"
@@ -2383,6 +2381,14 @@ def generate_statement_iif(frame, info, register_account, clearing_account):
         columns += "\tCLEAR"
     lines = [f"!TRNS\t{columns}", f"!SPL\t{columns}", "!ENDTRNS"]
     for number, row in enumerate(frame.itertuples(index=False), 1):
+        category = getattr(row, "Category", "")
+        split_account = (category.strip() if pd.notna(category) else "") or clearing_account
+        if not split_account:
+            raise ValueError(f"Choose a QuickBooks category for transaction {number} or enter a clearing account.")
+        if not re.fullmatch(account_pattern, split_account):
+            raise ValueError(f"Transaction {number}: use printable ASCII without double quotes for the split account.")
+        if register_account.casefold() == split_account.casefold():
+            raise ValueError(f"Transaction {number}: choose a different account for the split entry.")
         date = datetime.strptime(row.Date, "%Y-%m-%d").strftime("%m/%d/%Y")
         memo = " ".join(row.Description.split()).replace('"', "'")
         if not re.fullmatch(r"[ -~]+", memo):
@@ -2394,7 +2400,7 @@ def generate_statement_iif(frame, info, register_account, clearing_account):
             kind = "DEPOSIT" if amount > 0 else "CHECK"
         lines.extend((
             f"TRNS\t{kind}\t{date}\t{register_account}\t{amount:.2f}\t{memo}{cleared_field}",
-            f"SPL\t{kind}\t{date}\t{clearing_account}\t{-amount:.2f}\t{memo}{cleared_field}",
+            f"SPL\t{kind}\t{date}\t{split_account}\t{-amount:.2f}\t{memo}{cleared_field}",
             "ENDTRNS",
         ))
     return ("\r\n".join(lines) + "\r\n").encode("ascii")
