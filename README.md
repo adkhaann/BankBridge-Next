@@ -66,7 +66,7 @@ Choose **TD Canada Trust → Business Chequing** and use the dedicated parser. T
 
 ### Export bank or credit card transactions to QuickBooks Desktop IIF
 
-The **QuickBooks Desktop IIF** option is available for reconciled CAD deposit and credit card statements from any bank or issuer the app can read, including experimental layouts. Enter the full name of the existing bank or credit card register. The IIF posts each balancing entry to the existing CAD account named **Ask My Accountant** so it can be reclassified in QuickBooks after import. Bank transactions post as cheques or deposits. Card transactions post as journal entries, with charges increasing the card liability and payments and refunds reducing it.
+The **QuickBooks Desktop IIF** option is available for reconciled CAD deposit and credit card statements from any bank or issuer the app can read, including experimental layouts. Enter the full name of the existing bank or credit card register. The IIF posts each balancing entry to the existing CAD account named **Uncategorized Expenses** so it can be reclassified in QuickBooks after import. Bank transactions post as cheques or deposits. Card transactions post as journal entries, with charges increasing the card liability and payments and refunds reducing it.
 
 The file uses Intuit’s ASCII IIF format. If a description contains unsupported characters, the app points to the row to review. [Intuit’s IIF file format and samples](https://quickbooks.intuit.com/learn-support/en-ca/help-article/list-management/iif-overview-import-kit-sample-files-headers/L5CZIpJne_CA_en_CA)
 

@@ -21,7 +21,7 @@ import streamlit as st
 import engine as eng
 
 APP_VERSION = "1.0"
-IIF_HOLDING_ACCOUNT = "Ask My Accountant"
+IIF_HOLDING_ACCOUNT = "Uncategorized Expenses"
 
 
 def installed_build_id():

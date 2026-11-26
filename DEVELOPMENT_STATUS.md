@@ -109,7 +109,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 - Reconciliation detail shows the first running-balance mismatch with the printed and calculated values and original PDF page when the reviewed row count still matches the printed balance count.
 - The reconciliation PDF preview includes the page of the first running-balance mismatch and opens there by default. A mismatched balance-forward checkpoint takes precedence when both checks fail. Synthetic UI coverage verifies the preview and blocked downloads.
 
-- The desktop IIF form asks for the real register name and uses the existing CAD account Ask My Accountant for the balancing entry. Reclassify those entries in QuickBooks. Packaged smoke tests check the register and balancing lines for bank and card exports.
+- The desktop IIF form asks for the real register name and uses the existing CAD account Uncategorized Expenses for the balancing entry. Reclassify those entries in QuickBooks. Packaged smoke tests check the register and balancing lines for bank and card exports.
 
 - Windows startup checks the local server directly before opening Edge and retries a failed server start once on a fresh port. The launcher reports the local log path if both attempts fail. The cold-start report still needs verification on the affected installation.
 

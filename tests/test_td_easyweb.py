@@ -107,7 +107,7 @@ class TdEasyWebTests(unittest.TestCase):
                     bank, = ui.text_input
                     bank.set_value("Bank").run()
                     self.assertTrue(ui.get("download_button")[-1].proto.disabled)
-                    next(box for box in ui.checkbox if "Ask My Accountant" in box.label).check().run()
+                    next(box for box in ui.checkbox if "Uncategorized Expenses" in box.label).check().run()
                     self.assertFalse(ui.exception)
                     button = ui.get("download_button")[-1]
                     self.assertEqual(button.label, "Download IIF for QuickBooks Desktop")

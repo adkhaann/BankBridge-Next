@@ -62,7 +62,7 @@ def download_iif_postings(page, register_label, register_name):
     field = page.get_by_role("textbox", name=register_label)
     field.fill(register_name)
     field.press("Enter")
-    page.get_by_text("I confirmed that the statement and register use CAD and Ask My Accountant is an existing CAD account.", exact=True).click()
+    page.get_by_text("I confirmed that the statement and register use CAD and Uncategorized Expenses is an existing CAD account.", exact=True).click()
     rows = download_path(page, button_name).read_text(encoding="ascii").splitlines()
     return [line.split("\t")[1:5] for line in rows if line.startswith(("TRNS\t", "SPL\t"))]
 
@@ -71,9 +71,9 @@ def check_iif_exports(page):
     convert_pdf(page, "Synthetic-TD-EasyWeb.pdf", easyweb_printout())
     if download_iif_postings(page, "QuickBooks bank account", "TD Chequing") != [
         ["CHECK", "01/05/2026", "TD Chequing", "-10.00"],
-        ["CHECK", "01/05/2026", "Ask My Accountant", "10.00"],
+        ["CHECK", "01/05/2026", "Uncategorized Expenses", "10.00"],
         ["DEPOSIT", "01/08/2026", "TD Chequing", "25.00"],
-        ["DEPOSIT", "01/08/2026", "Ask My Accountant", "-25.00"],
+        ["DEPOSIT", "01/08/2026", "Uncategorized Expenses", "-25.00"],
     ]:
         raise RuntimeError("The downloaded EasyWeb IIF did not contain the expected balanced postings.")
 
@@ -84,9 +84,9 @@ def check_iif_exports(page):
     convert_pdf(page, "Synthetic-Credit-Card.pdf", card_statement())
     if download_iif_postings(page, "QuickBooks credit card account", "Visa") != [
         ["GENERAL JOURNAL", "01/05/2026", "Visa", "-30.00"],
-        ["GENERAL JOURNAL", "01/05/2026", "Ask My Accountant", "30.00"],
+        ["GENERAL JOURNAL", "01/05/2026", "Uncategorized Expenses", "30.00"],
         ["GENERAL JOURNAL", "01/08/2026", "Visa", "20.00"],
-        ["GENERAL JOURNAL", "01/08/2026", "Ask My Accountant", "-20.00"],
+        ["GENERAL JOURNAL", "01/08/2026", "Uncategorized Expenses", "-20.00"],
     ]:
         raise RuntimeError("The downloaded card IIF did not contain the expected balanced postings.")
 
