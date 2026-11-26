@@ -6,6 +6,7 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 from test_td_deposit import td_statement
+from test_rbc_deposit import rbc_statement
 from test_td_card import td_card_statement
 from test_conversion import statement_pdf
 
@@ -66,3 +67,19 @@ class StatementReviewTests(unittest.TestCase):
             self.assertFalse(ui.get("download_button"))
             self.assertTrue(next(button for button in ui.button if button.label == "Convert statement").disabled)
             self.assertIn("Could not detect the institution and account type.", ui.warning[0].value)
+
+    def test_unclassified_rbc_deposit_requires_reconciliation_and_withholds_qbo(self):
+        path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
+        for printed_debit in ("10.00", "10.01"):
+            with self.subTest(printed_debit=printed_debit):
+                pdf = rbc_statement(heading="RBC Royal Bank", printed_debit=printed_debit)
+                uploaded = SimpleNamespace(name="rbc.pdf", file_id="rbc", getvalue=lambda: pdf)
+                with patch("streamlit.file_uploader", return_value=uploaded):
+                    ui = AppTest.from_file(str(path)).run()
+                    convert = next(button for button in ui.button if button.label == "Convert statement")
+                    self.assertFalse(convert.disabled)
+                    convert.click().run()
+                self.assertFalse(ui.exception)
+                downloads = [button.label for button in ui.get("download_button")]
+                self.assertEqual("Download CSV" in downloads, printed_debit == "10.00")
+                self.assertNotIn("Download QBO", downloads)

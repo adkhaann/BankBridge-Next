@@ -724,6 +724,14 @@ def extract_rbc_business_chequing_transactions(pdf_bytes):
     }
 
 
+def extract_rbc_unclassified_deposit(pdf_bytes, *, use_ocr=False):
+    """Try deposit layouts without claiming a specific account product."""
+    frame, info = extract_rbc_business_chequing_transactions(pdf_bytes)
+    if not frame.empty and all(value is not None for value in info["control"].values()):
+        return frame, {**info, "unclassified_account": True}
+    return extract_universal_transactions(pdf_bytes, "RBC Royal Bank", "Personal Chequing", use_ocr=use_ocr)
+
+
 def generate_rbc_business_chequing_qbo(df, account_id, branch_id, ending_balance):
     if not isinstance(account_id, str) or not re.fullmatch(r"[0-9]+", account_id):
         raise ValueError("The RBC statement must show the full account number for QBO export.")
@@ -2410,7 +2418,7 @@ def make_qbo(df, info, account_type):
     """Route QBO only when the statement provides the required account data."""
     if info.get("td_easyweb"):
         return None, "QBO is unavailable for TD EasyWeb activity printouts."
-    if info.get("universal"):
+    if info.get("universal") or info.get("unclassified_account"):
         return None, "QBO requires a verified institution and account mapping."
     currency = info.get("currency")
     if currency and currency != "CAD":

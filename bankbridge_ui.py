@@ -299,15 +299,24 @@ with left:
         st.text_input("Institution", value="Auto-Detect (All Canadian Banks)", disabled=True)
         bank = detected.get("bank")
         account_type = detected.get("account type")
+        rbc_deposit_fallback = bank == "RBC Royal Bank" and account_type is None
+        if rbc_deposit_fallback:
+            account_type = "Deposit layout (account type unconfirmed)"
         if bank and account_type:
             st.caption(f"Using {bank} · {account_type}")
         dedicated = eng.get_dedicated_extractor(bank, account_type)
         eligible = account_type in eng.UNIVERSAL_DEPOSIT_TYPES or account_type in eng.CREDIT_CARD_SELECTIONS
         use_fallback = st.checkbox("Try experimental statement parser") if dedicated and eligible else False
         universal = eligible and (dedicated is None or use_fallback)
-        use_ocr = st.checkbox("Use local OCR for scanned pages", key="bb_use_ocr") if universal else False
+        use_ocr = (
+            st.checkbox("Use local OCR for scanned pages", key="bb_use_ocr")
+            if universal or rbc_deposit_fallback else False
+        )
         extractor = get_extractor(bank, account_type, use_ocr=use_ocr, use_fallback=use_fallback)
-        if universal:
+        if rbc_deposit_fallback:
+            extractor = lambda data: eng.extract_rbc_unclassified_deposit(data, use_ocr=use_ocr)
+            st.info("RBC detected. BankBridgeNext will check whether this PDF matches a deposit statement layout.")
+        elif universal:
             st.info("Experimental parser. CSV available after reconciliation.")
         elif extractor:
             st.markdown(f'<span class="bb-badge ok">● Dedicated parser — {html.escape(bank)} · '
