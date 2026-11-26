@@ -129,6 +129,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - Verified local detection and reconciliation with two BMO business deposit PDFs, one CIBC deposit PDF, and one CIBC Aventura Visa PDF supplied by the user. The Visa parser now resumes across card subtotals and continued charge sections. A second CIBC deposit PDF had no transactions. The line-of-credit sample remains unsupported. Regression fixtures use synthetic data.
 
+- Verified the supplied RBC Avion Visa Business PDF and French BMO Personal Line of Credit PDF through desktop detection and reconciliation. RBC Visa supports CSV and IIF generation. The BMO layout supports CSV with printed opening balance, closing balance, charge totals, and credit totals. QuickBooks imports of these layouts remain unverified.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. The user confirmed a synthetic RBC Business Chequing QBO import and repeat-import check. Other QBO mappings remain unverified in QuickBooks Desktop. IIF can be generated for every reconciled CAD deposit or card layout shown below, including experimental layouts.
@@ -141,6 +143,7 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 | RBC Royal Bank | Credit Card | Synthetic Mastercard PDF, year rollover, payments, interest, fees, CSV and missing amount regression | Full printed card ID and closing balance |
 | BMO Bank of Montreal | Business Chequing | Synthetic PDF, printed balances and item count, CSV generation, and failed reconciliation cases | Pending a confirmed account mapping and printed ledger balance |
 | BMO Bank of Montreal | Credit Card | Synthetic Mastercard PDF, year rollover, signed payments and refunds, independent printed balances and CSV | Full printed card ID and closing balance |
+| BMO Bank of Montreal | Personal Line of Credit | French layout verified against a user-provided PDF and synthetic fixture | CSV only |
 | Scotiabank | Business Chequing | Synthetic two-page PDF, CSV generation, and failed reconciliation for count and one-cent total differences | Pending a confirmed account mapping and printed ledger balance |
 | CIBC | Personal Chequing, Business Chequing, Personal Savings, Business Savings | One synthetic deposit layout parses and reconciles. Coverage across products and statement variants still needs fixtures. | Printed transit/account ID and compatible CIBC deposit type |
 | CIBC | Credit Card | Synthetic multi-page Visa conversion, refunds, interest, year rollover, printed balance and masked/full account export checks | Full printed card ID and closing balance |
@@ -169,14 +172,15 @@ The existing catalog contains 38 types. Dedicated entries take precedence over t
 | Credit Card | Dedicated entries above |
 | Personal Credit Card, Business Credit Card, Corporate Credit Card, Secured Credit Card | Routes to the existing dedicated TD, RBC, BMO, and CIBC parsers. A desktop experimental path handles explicitly separated charges and payments/credits for any selected issuer. Product-specific layouts require separate fixture evidence. |
 | Prepaid Credit Card | Catalog only |
-| Line of Credit, Personal Line of Credit, Business Line of Credit, Home Equity Line of Credit (HELOC), Student Line of Credit | Catalog only |
+| Personal Line of Credit | BMO French personal line-of-credit layout with reconciled CSV |
+| Line of Credit, Business Line of Credit, Home Equity Line of Credit (HELOC), Student Line of Credit | Catalog only |
 | Personal Loan, Business Loan, Vehicle Loan, Mortgage, Equipment Financing | Catalog only |
 | Non-Registered Investment Account, TFSA, RRSP, RRIF, RESP, FHSA, RDSP, LIRA, LIF, Corporate Investment Account | Catalog only |
 | Trust Account, GIC and Term Deposit, Digital Banking Account, Other Account Type | Catalog only |
 
 ## Tests and resuming
 
-Test result on Linux with Python 3.12 was **150 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows CI builds the executable, runs full TD CSV and RBC QBO downloads, checks the mismatch export gate, and tests updater rollback. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. The user subsequently confirmed that both the synthetic RBC QBO repeat-import check in QuickBooks Desktop and the synthetic TD CSV import check in QuickBooks Online passed. This closes the first release's sample import checks. Production statement mappings remain unverified.
+Test result on Linux with Python 3.12 was **152 passing tests** with local Tesseract English data. The desktop Streamlit UI initialized and displayed the OCR option for an unlisted institution. Windows CI builds the executable, runs full TD CSV and RBC QBO downloads, checks the mismatch export gate, and tests updater rollback. The user confirmed interactive Windows conversion of the packaged synthetic TD statement with three transactions, $20.00 in debits, $35.00 in credits, and the CSV export button visible. The user also confirmed that QuickBooks Desktop accepted the synthetic RBC QBO into its review screen with the correct payment and deposit. The user subsequently confirmed that both the synthetic RBC QBO repeat-import check in QuickBooks Desktop and the synthetic TD CSV import check in QuickBooks Online passed. This closes the first release's sample import checks. Production statement mappings remain unverified.
 
 1. Check out `pdf-to-qbo` and pull it with `git pull --ff-only`.
 2. On Linux, run `python3.12 -m venv .venv` and `.venv/bin/python -m pip install -r requirements.txt`. On Windows, use `1_Setup.bat` and `.venv\Scripts\python.exe`.

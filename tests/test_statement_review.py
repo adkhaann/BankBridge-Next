@@ -90,7 +90,7 @@ class StatementReviewTests(unittest.TestCase):
     def test_branded_card_headings_reach_conversion(self):
         path = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         for bank, fixture in (
-            ("RBC Royal Bank", lambda: rbc_mastercard_statement(heading="RBC Avion Visa Infinite")),
+            ("RBC Royal Bank", lambda: rbc_mastercard_statement(heading="RBC® Avion® VisaJ Business")),
             ("BMO Bank of Montreal", bmo_mastercard_statement),
             ("CIBC", cibc_visa_statement),
         ):
@@ -98,7 +98,8 @@ class StatementReviewTests(unittest.TestCase):
                 uploaded = SimpleNamespace(name="card.pdf", file_id="card", getvalue=fixture)
                 with patch("streamlit.file_uploader", return_value=uploaded):
                     ui = AppTest.from_file(str(path)).run()
-                    self.assertIn(f"Using {bank} · Credit Card", [caption.value for caption in ui.caption])
+                    account = "Business Credit Card" if bank == "RBC Royal Bank" else "Credit Card"
+                    self.assertIn(f"Using {bank} · {account}", [caption.value for caption in ui.caption])
                     next(button for button in ui.button if button.label == "Convert statement").click().run()
                 self.assertFalse(ui.exception)
                 self.assertIn("Download CSV", [button.label for button in ui.get("download_button")])

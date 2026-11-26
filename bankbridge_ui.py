@@ -573,7 +573,9 @@ else:
                             st.caption(qbo_note)
 
             with st.expander("QuickBooks Desktop IIF"):
-                if not rec["ok"] or info.get("currency") not in (None, "CAD"):
+                if info.get("line_of_credit"):
+                    st.caption("IIF is unavailable for this line-of-credit layout.")
+                elif not rec["ok"] or info.get("currency") not in (None, "CAD"):
                     reason = ("Reconcile the statement to enable IIF."
                               if not rec["ok"] else "IIF currently supports CAD statements.")
                     st.caption(reason)

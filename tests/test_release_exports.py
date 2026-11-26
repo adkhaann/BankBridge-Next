@@ -17,6 +17,7 @@ from test_scotiabank_deposit import scotiabank_statement
 from test_td_card import td_card_statement
 from test_td_deposit import td_statement
 
+from test_bmo_loc import bmo_loc_statement
 
 class ReleaseExportTests(unittest.TestCase):
     def test_desktop_routes_reconcile_and_expose_expected_downloads(self):
@@ -27,6 +28,7 @@ class ReleaseExportTests(unittest.TestCase):
             ("RBC Royal Bank", "Credit Card"): (rbc_mastercard_statement, False),
             ("BMO Bank of Montreal", "Business Chequing"): (bmo_statement, False),
             ("BMO Bank of Montreal", "Credit Card"): (bmo_mastercard_statement, False),
+            ("BMO Bank of Montreal", "Personal Line of Credit"): (bmo_loc_statement, False),
             ("Scotiabank", "Business Chequing"): (scotiabank_statement, False),
             ("CIBC", "Credit Card"): (cibc_visa_statement, False),
         }
@@ -49,6 +51,9 @@ class ReleaseExportTests(unittest.TestCase):
                     self.assertFalse(ui.exception)
                     self.assertFalse(ui.error)
                     expected = ["Download CSV", "Download QBO"] if qbo else ["Download CSV"]
+                    if account_type == "Personal Line of Credit":
+                        self.assertEqual([button.label for button in ui.get("download_button")], expected)
+                        continue
                     expected.append("Download IIF for QuickBooks Desktop")
                     self.assertEqual([button.label for button in ui.get("download_button")], expected)
                     self.assertTrue(ui.get("download_button")[-1].proto.disabled)

@@ -2418,6 +2418,8 @@ def reconcile_statement(frame, info):
 def generate_statement_iif(frame, info, register_account, clearing_account=""):
     """Create a transaction-only IIF from reconciled deposit or card rows."""
     statement_type = info.get("statement_type")
+    if info.get("line_of_credit"):
+        raise ValueError("IIF is unavailable for line-of-credit statements.")
     if statement_type not in ("chequing", "credit_card"):
         raise ValueError("IIF requires a bank or credit card statement.")
     if info.get("currency") not in (None, "CAD"):
@@ -3361,13 +3363,24 @@ def detect_statement_selection(pdf_bytes):
             bank, account = product
             matches["bank"].add(bank)
             matches["account type"].add(account)
-    if (any(line.strip() == "business banking statement" for line in original_lines)
-            and any(re.search(r"(?<![\w.-])(?:www\.)?bmo\.com(?![\w.-])", line) for line in lines)):
+    bmo_website = any(re.search(r"(?<![\w.-])(?:www\.)?bmo\.com(?![\w.-])", line) for line in lines)
+    original_headings = {line.strip() for line in original_lines}
+    if bmo_website and "business banking statement" in original_headings:
         matches["bank"].add("BMO Bank of Montreal")
         matches["account type"].add("Business Chequing")
     if matches["account type"].intersection(UNIVERSAL_DEPOSIT_TYPES):
         matches["account type"].discard("Deposit Account")
+    if bmo_website and "votre marge-credit personnelle" in original_headings:
+        matches["bank"].add("BMO Bank of Montreal")
+        matches["account type"].add("Personal Line of Credit")
     card_networks = set()
+    for line in original_lines:
+        # RBC's embedded font can expose the Visa trademark as a trailing J.
+        heading = " ".join(line.translate(str.maketrans("", "", "®™")).split())
+        if heading in ("rbc avion visa business", "rbc avion visaj business"):
+            matches["bank"].add("RBC Royal Bank")
+            matches["account type"].add("Business Credit Card")
+            card_networks.add("Visa")
     for line in lines[:24]:
         heading = line.translate(str.maketrans("", "", "®™"))
         heading = " ".join(heading.split()).removesuffix(" statement")
@@ -4149,6 +4162,92 @@ CREDIT_CARD_SELECTIONS = (
     "Corporate Credit Card", "Secured Credit Card",
 )
 
+def extract_bmo_personal_line_of_credit(pdf_bytes):
+    """Read the French BMO personal line of credit and check printed totals."""
+    with open_statement_pdf(pdf_bytes) as document:
+        pages = [page.get_text().splitlines() for page in document]
+    first = [line.strip() for line in pages[0]]
+    if not any(line.casefold() == "votre marge-credit personnelle" for line in first):
+        raise ValueError("Expected the French BMO personal line-of-credit heading.")
+
+    def header(line):
+        return line.casefold().translate(str.maketrans("øùû", "éêè"))
+
+    def printed(label):
+        values = [first[i + 1] for i, line in enumerate(first[:-1]) if header(line).startswith(label)]
+        if len(values) != 1:
+            raise ValueError(f"Expected one printed BMO line-of-credit control for {label}.")
+        return amount_cents(values[0])
+
+    def amount_cents(value):
+        credit = value.upper().endswith("CR")
+        if credit:
+            value = value[:-2].rstrip()
+        cents = universal_money_cents(value)
+        return -abs(cents) if credit else cents
+
+    date_pattern = r"(\d{1,2})\s*([a-zéû]+)\.?"
+    statement_date = next(
+        (match for line in first if (match := re.fullmatch(r"date relevé\s*:\s*" + date_pattern + r"\s+(\d{4})", header(line)))),
+        None,
+    )
+    previous_date = next(
+        (match for line in first if (match := re.fullmatch(r"solde précédent,\s*" + date_pattern, header(line)))),
+        None,
+    )
+    if not statement_date or not previous_date:
+        raise ValueError("The BMO line-of-credit statement period is missing.")
+    end = datetime.strptime(
+        universal_statement_date(f"{statement_date[1]} {statement_date[2]} {statement_date[3]}"), "%Y-%m-%d",
+    )
+    start_year = end.year - (FRENCH_STATEMENT_MONTHS.get(previous_date[2], 0) > end.month)
+    start = universal_statement_date(f"{previous_date[1]} {previous_date[2]} {start_year}")
+    period = (start, end.date().isoformat())
+
+    opening = printed("solde précédent,")
+    closing = printed("nouveau solde,")
+    debits = sum(printed(label) for label in (
+        "+ achats", "+ avances", "+ intérêt", "+ frais", "+ redressement des débits",
+    ))
+    credits = sum(abs(printed(label)) for label in ("- paiement", "- redressement des crédits"))
+    if opening + debits - credits != closing:
+        raise ValueError("The printed BMO line-of-credit totals do not match the closing balance.")
+
+    transactions = []
+    for page_number, page in enumerate(pages, 1):
+        lines = [line.strip() for line in page]
+        for i, line in enumerate(lines):
+            if not header(line).startswith("transactions pour le compte "):
+                continue
+            row = i + 1
+            while row < len(lines) and lines[row] != ".":
+                if not lines[row]:
+                    row += 1
+                    continue
+                try:
+                    date, sequence, description, amount = lines[row:row + 4]
+                    match = re.fullmatch(date_pattern, header(date))
+                    if not match or not sequence.isdecimal() or not description:
+                        raise ValueError
+                    date = universal_transaction_date(f"{match[1]} {match[2]}", None, period)
+                    cents = amount_cents(amount)
+                except ValueError:
+                    raise ValueError(f"Unrecognized BMO line-of-credit transaction on page {page_number}.") from None
+                if cents:
+                    transactions.append((date, description, max(cents, 0) / 100, max(-cents, 0) / 100))
+                row += 4
+    if not transactions:
+        raise ValueError("The BMO line-of-credit transaction table is missing.")
+    frame = pd.DataFrame(transactions, columns=["Date", "Description", "Debit", "Credit"])
+    info = {
+        "statement_type": "credit_card", "line_of_credit": True, "universal": True,
+        "bank": "BMO Bank of Montreal", "currency": statement_currency("\n".join(first)), "period": period,
+        "control": {"opening": opening / 100, "closing": closing / 100,
+                    "debit": debits / 100, "credit": credits / 100},
+    }
+    return frame, info
+
+
 DEDICATED_EXTRACTORS = {
     ("TD Canada Trust", "Business Chequing"): extract_td_chequing_transactions,
     ("TD Canada Trust", "Credit Card"): extract_td_credit_card_transactions,
@@ -4156,6 +4255,7 @@ DEDICATED_EXTRACTORS = {
     ("RBC Royal Bank", "Credit Card"): extract_rbc_mastercard_transactions,
     ("BMO Bank of Montreal", "Business Chequing"): extract_bmo_business_chequing_transactions,
     ("BMO Bank of Montreal", "Credit Card"): extract_bmo_credit_card_transactions,
+    ("BMO Bank of Montreal", "Personal Line of Credit"): extract_bmo_personal_line_of_credit,
     ("Scotiabank", "Business Chequing"): extract_scotiabank_business_chequing_transactions,
     ("CIBC", "Credit Card"): extract_cibc_credit_card_transactions,
     ("CIBC", "Personal Chequing"): extract_cibc_chequing_transactions,
