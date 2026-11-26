@@ -3270,6 +3270,7 @@ def universal_transaction_date(value, declared_format, period):
 STATEMENT_BANK_ALIASES = {
     "td": "TD Canada Trust",
     "rbc": "RBC Royal Bank",
+    "royal bank of canada": "RBC Royal Bank",
     "rbc banque royale": "RBC Royal Bank",
     "bmo": "BMO Bank of Montreal",
     "bmo banque de montréal": "BMO Bank of Montreal",
@@ -3291,6 +3292,8 @@ STATEMENT_ACCOUNT_ALIASES = {
 }
 
 STATEMENT_PRODUCT_HEADINGS = {
+    "rbc digital choice": ("RBC Royal Bank", "Business Chequing"),
+    "rbc digital choice business account": ("RBC Royal Bank", "Business Chequing"),
     "td business cash back visa": ("TD Canada Trust", "Business Credit Card"),
     "your no fee chequing account": ("Simplii Financial", "Personal Chequing"),
 }

@@ -121,6 +121,8 @@ Branch `pdf-to-qbo` is the development branch. `main` is the stable branch.
 
 - The Windows desktop shows only Auto-Detect for Institution and no account-type selector. It displays detected details and offers a PDF preview when detection is incomplete. This limits desktop conversion to PDFs with detectable statement details.
 
+- Auto-detection recognizes exact RBC Digital Choice business chequing headings. The synthetic RBC deposit fixture uses the product heading to exercise the automatic route. The screenshot of the unrecognized chequing PDF does not identify its layout.
+
 ## Dedicated layout compatibility
 
 “Dedicated” identifies a parser in the application. Layout verification requires a fixture that parses and reconciles. Desktop eligibility refers to file generation only. The user confirmed a synthetic RBC Business Chequing QBO import and repeat-import check. Other QBO mappings remain unverified in QuickBooks Desktop. IIF can be generated for every reconciled CAD deposit or card layout shown below, including experimental layouts.

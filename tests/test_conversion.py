@@ -191,6 +191,8 @@ class StatementSelectionTests(unittest.TestCase):
 
     def test_detects_exact_product_headings(self):
         for heading, bank, account in (
+            ("RBC Digital Choice", "RBC Royal Bank", "Business Chequing"),
+            ("RBC Digital Choice Business Account", "RBC Royal Bank", "Business Chequing"),
             ("TD Business Cash Back Visa", "TD Canada Trust", "Business Credit Card"),
             ("your no fee chequing account", "Simplii Financial", "Personal Chequing"),
         ):

@@ -327,7 +327,7 @@ with upload_actions:
             matched = " · ".join(detail for detail in (bank, account_type) if detail)
             if matched:
                 st.caption(f"Detected {matched}.")
-            st.warning(f"Could not detect the {missing}. Try a PDF with a readable first page.")
+            st.warning(f"Could not detect the {missing}. The first page may be scanned or use an unfamiliar statement heading.")
             show_statement_preview(uploaded, "undetected")
     go = st.button("Convert statement", type="primary", width="stretch",
                    disabled=(uploaded is None or not bank or not account_type or extractor is None
