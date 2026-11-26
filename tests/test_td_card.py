@@ -11,6 +11,7 @@ def td_card_statement():
     with fitz.open() as document:
         first = document.new_page()
         first.insert_text((32, 42), "\n".join([
+            "TD Business Cash Back Visa",
             "STATEMENT DATE: January 31, 2026",
             "Account Number: 4321 XXXX XXXX 1234",
             "Previous Balance $100.00",

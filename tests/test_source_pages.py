@@ -144,7 +144,7 @@ class SourcePageTests(unittest.TestCase):
             ui = AppTest.from_file(str(app_path)).run()
             ui.selectbox(key="bb_bank").set_value("Other Canadian Bank / Credit Union")
             ui.selectbox(key="bb_type").set_value("Personal Savings").run()
-            next(button for button in ui.button if button.label == "Convert statement").click().run()
+            self.assertTrue(next(button for button in ui.button if button.label == "Convert statement").disabled)
             self.assertIn("The uploaded file is empty", ui.error[0].value)
             self.assertNotIn("account type", ui.error[0].value)
             self.assertFalse(any(box.label == "Preview original PDF" for box in ui.checkbox))

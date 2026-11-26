@@ -64,6 +64,7 @@ class UniversalCardTests(unittest.TestCase):
         app = Path(__file__).resolve().parents[1] / "bankbridge_ui.py"
         with patch("streamlit.file_uploader", return_value=pdf):
             ui = AppTest.from_file(str(app)).run()
+            ui.selectbox(key="bb_bank").set_value("TD Canada Trust")
             ui.selectbox(key="bb_type").set_value("Credit Card").run()
             next(box for box in ui.checkbox if box.label == "Try experimental statement parser").check().run()
             next(button for button in ui.button if button.label == "Convert statement").click().run()

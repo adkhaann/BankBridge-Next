@@ -15,7 +15,9 @@ def easyweb_printout(printed_debit="10.00", zero_balance="115.00"):
     with fitz.open() as document:
         page = document.new_page()
         for y, fields in (
+            (30, [(32, "Bank: TD Canada Trust")]),
             (40, [(32, "Account Activity")]),
+            (50, [(32, "Account type: Business Chequing")]),
             (70, [(32, "Your transactions for Jan 1, 2026 to Jan 31, 2026")]),
             (110, [(32, "Date"), (93, "Transaction Description"), (235, "Withdrawals"),
                    (300, "Deposits"), (371, "Balance")]),

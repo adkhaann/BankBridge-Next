@@ -238,22 +238,6 @@ def retry_with_local_ocr():
     st.session_state["bb_retry_ocr"] = True
 
 
-def apply_detected_selection(pdf_bytes):
-    try:
-        detected = eng.detect_statement_selection(pdf_bytes)
-    except (ValueError, RuntimeError) as error:
-        st.session_state["bb_detection"] = f"Could not read statement details. {error}"
-        return
-    if "bank" in detected:
-        st.session_state["bb_bank"] = detected["bank"]
-    if "account type" in detected:
-        st.session_state["bb_type"] = detected["account type"]
-    st.session_state["bb_detection"] = (
-        "Review the detected selection. Choose any undetected details manually."
-        if detected else "Bank and account type could not be detected. Select the details manually."
-    )
-
-
 def file_stem(df, bank, account_type):
     short = {
         "TD Canada Trust": "TD", "RBC Royal Bank": "RBC", "BMO Bank of Montreal": "BMO",
@@ -292,16 +276,38 @@ types = list(eng.ACCOUNT_TYPES)
 
 left, right = st.columns(2, gap="medium")
 
+auto_bank = "Auto-Detect (All Canadian Banks)"
+auto_type = "Auto-Detect"
+
+with right:
+    with st.container(key="card_upload"):
+        step(2, "Upload statement", "Select a PDF to detect its institution and account type.")
+        uploaded = st.file_uploader("Statement PDF", type=["pdf"], key="bb_file",
+                                    label_visibility="collapsed")
+        upload_actions = st.container()
+
+upload_id = uploaded.file_id if uploaded is not None else None
+if ss.get("bb_detection_file") != upload_id:
+    ss["bb_detection_file"] = upload_id
+    ss["bb_detection"] = {}
+    ss.pop("bb_detection_error", None)
+    if uploaded is not None:
+        try:
+            ss["bb_detection"] = eng.detect_statement_selection(uploaded.getvalue())
+        except (ValueError, RuntimeError) as error:
+            ss["bb_detection_error"] = str(error)
+detected = ss.get("bb_detection", {})
+
 with left:
     with st.container(key="card_setup"):
-        step(1, "Statement type", "Pick the bank and the kind of account on the statement.")
+        step(1, "Statement type", "Use automatic detection or choose the statement details manually.")
         c1, c2 = st.columns(2)
-        bank = c1.selectbox("Bank", banks, key="bb_bank")
-        account_type = c2.selectbox(
-            "Account type", types,
-            index=types.index("Business Chequing") if "Business Chequing" in types else 0,
-            key="bb_type",
-        )
+        selected_bank = c1.selectbox("Institution", [auto_bank, *banks], key="bb_bank")
+        selected_type = c2.selectbox("Account type", [auto_type, *types], key="bb_type")
+        bank = detected.get("bank") if selected_bank == auto_bank else selected_bank
+        account_type = detected.get("account type") if selected_type == auto_type else selected_type
+        if bank and account_type:
+            st.caption(f"Using {bank} · {account_type}")
         dedicated = eng.get_dedicated_extractor(bank, account_type)
         eligible = account_type in eng.UNIVERSAL_DEPOSIT_TYPES or account_type in eng.CREDIT_CARD_SELECTIONS
         use_fallback = st.checkbox("Try experimental statement parser") if dedicated and eligible else False
@@ -313,23 +319,25 @@ with left:
         elif extractor:
             st.markdown(f'<span class="bb-badge ok">● Dedicated parser — {html.escape(bank)} · '
                         f'{html.escape(account_type)}</span>', unsafe_allow_html=True)
-        else:
+        elif bank and account_type:
             st.markdown('<span class="bb-badge no">● Coming soon — this statement type is not '
                         'activated yet</span>', unsafe_allow_html=True)
 
-with right:
-    with st.container(key="card_upload"):
-        step(2, "Upload statement", "Select the PDF statement to convert.")
-        uploaded = st.file_uploader("Statement PDF", type=["pdf"], key="bb_file",
-                                    label_visibility="collapsed",
-                                    on_change=lambda: ss.pop("bb_detection", None))
-        if uploaded is not None:
-            st.button("Detect bank and account type", on_click=apply_detected_selection,
-                      args=(uploaded.getvalue(),))
-            if ss.get("bb_detection"):
-                st.caption(ss["bb_detection"])
-        go = st.button("Convert statement", type="primary", width="stretch",
-                       disabled=(uploaded is None or extractor is None))
+with upload_actions:
+    if uploaded is not None:
+        if error := ss.get("bb_detection_error"):
+            st.error(error)
+        elif not bank or not account_type:
+            missing = "institution and account type" if not bank and not account_type else (
+                "institution" if not bank else "account type"
+            )
+            matched = " · ".join(detail for detail in (bank, account_type) if detail)
+            if matched:
+                st.caption(f"Detected {matched}.")
+            st.caption(f"Choose the {missing} manually to continue.")
+    go = st.button("Convert statement", type="primary", width="stretch",
+                   disabled=(uploaded is None or not bank or not account_type or extractor is None
+                             or bool(ss.get("bb_detection_error"))))
 
 go = ss.pop("bb_retry_ocr", False) or go
 current_input = (uploaded.file_id if uploaded else None, bank, account_type, universal, use_ocr)
@@ -338,7 +346,7 @@ if ss.get("bb_input") != current_input or go:
         ss.pop(key, None)
     ss["bb_input"] = current_input
 
-if go and uploaded is not None and extractor is not None:
+if go and uploaded is not None and bank and account_type and extractor is not None:
     with st.spinner("Reading statement…"):
         try:
             df, info = extractor(uploaded.getvalue())
@@ -374,7 +382,7 @@ elif ss.get("bb_error"):
 if not has_results:
     html_block(
         """<div class="bb-how">
-          <div><b>1 · Choose</b>Select the bank and account type that match your statement.</div>
+          <div><b>1 · Upload</b>Choose a PDF to detect the institution and account type.</div>
           <div><b>2 · Convert</b>BankBridge reads every transaction and checks it against the statement totals.</div>
           <div><b>3 · Export</b>Once it reconciles, download a CSV for QuickBooks Online or a QBO file for QuickBooks Desktop.</div>
         </div>""",

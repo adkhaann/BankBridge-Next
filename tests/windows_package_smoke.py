@@ -32,16 +32,12 @@ def download_path(page, name):
 
 
 def check_rbc_exports(page):
-    page.get_by_role("combobox", name="Bank", exact=True).click()
-    page.get_by_role("option", name="RBC Royal Bank", exact=True).click()
     convert_pdf(page, "Synthetic-RBC-mismatched.pdf", rbc_statement(printed_debit="10.01"))
     expect(page.get_by_text("✕ Not reconciled", exact=True)).to_be_visible()
     expect(page.get_by_role("button", name="Download CSV", exact=True)).to_have_count(0)
     expect(page.get_by_role("button", name="Download QBO", exact=True)).to_have_count(0)
 
     page.reload()
-    page.get_by_role("combobox", name="Bank", exact=True).click()
-    page.get_by_role("option", name="RBC Royal Bank", exact=True).click()
     convert_pdf(page, "Synthetic-RBC-Business-Chequing.pdf", rbc_statement())
     expect(page.get_by_text("✓ Reconciled", exact=True)).to_be_visible()
     first = download_path(page, "Download QBO").read_text(encoding="cp1252")
@@ -78,6 +74,8 @@ def check_iif_exports(page):
         raise RuntimeError("The downloaded EasyWeb IIF did not contain the expected balanced postings.")
 
     page.reload()
+    page.get_by_role("combobox", name="Institution", exact=True).click()
+    page.get_by_role("option", name="TD Canada Trust", exact=True).click()
     page.get_by_role("combobox", name="Account type", exact=True).click()
     page.get_by_role("option", name="Credit Card", exact=True).click()
     page.get_by_text("Try experimental statement parser", exact=True).click()

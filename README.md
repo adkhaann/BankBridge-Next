@@ -30,14 +30,14 @@ The updater is for the extracted portable app. A source checkout continues to up
 
 ### Verify a conversion
 
-1. Select **TD Canada Trust** and **Business Chequing**.
+1. Leave Institution and Account type on Auto-Detect.
 2. Upload `samples/Synthetic-TD-Business-Chequing.pdf` from the extracted folder, then choose **Convert statement**.
 3. Confirm that the app shows **Reconciled**, with three transactions. The two January 5 fees are $10.00 each and the January 8 receipt is $35.00.
 4. Download the CSV. It should contain two `-10.0` amounts and one `35.0` amount. Use a test company if you try importing it into QuickBooks.
 
 ### Try a QuickBooks Desktop import
 
-1. Select **RBC Royal Bank** and **Business Chequing**. Upload `samples/Synthetic-RBC-Business-Chequing.pdf` and convert it.
+1. Leave Institution and Account type on Auto-Detect. Upload `samples/Synthetic-RBC-Business-Chequing.pdf` and convert it.
 2. Check for **Reconciled**, one $10.00 debit and one $25.00 credit. Click **Download QBO**.
 3. In a disposable QuickBooks Desktop test company, import the QBO using **File → Utilities → Import → Web Connect Files**. Check that the two transactions appear in the intended test account with the correct dates and amounts.
 4. Import the same file again and check whether QuickBooks adds any duplicate rows. If QuickBooks rejects the file, record its exact error and version.
