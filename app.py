@@ -2911,7 +2911,7 @@ def cibc_bank_identifier(full_text):
     transit = re.search(r'Branch transit number\s+(\d{5})', full_text)
     acct = re.search(r'Account number\s+(\d{2}-\d{5})', full_text)
     if not transit or not acct:
-        raise ValueError('CIBC transit/account identifiers not found in PDF.')
+        return None
     return transit.group(1) + ' ' + acct.group(1)
 
 
@@ -2962,11 +2962,15 @@ def extract_cibc_credit_card_transactions(pdf_bytes):
     for page_text in transaction_pages:
         lines = [line.strip() for line in page_text.splitlines() if line.strip()]
         for i, line in enumerate(lines):
-            if line in headings:
-                section = headings[line]
+            if line.removesuffix(" (continued)") in headings:
+                section = headings[line.removesuffix(" (continued)")]
+            elif line.startswith("Total for ") and section == "charges":
+                section = "between_cards"
+            elif line.startswith("Card number ") and section == "between_cards":
+                section = "charges"
             elif line.startswith(totals):
                 section = None
-            if section is None or not date_re.fullmatch(line) or i + 2 >= len(lines):
+            if section in (None, "between_cards") or not date_re.fullmatch(line) or i + 2 >= len(lines):
                 continue
             posting = posting_re.match(lines[i + 1])
             if not posting:
@@ -3071,7 +3075,7 @@ def extract_cibc_chequing_transactions(pdf_bytes):
                'control':{'debit_total':debit_total,'credit_total':credit_total},
                'account_id':acct,'opening_balance':opening,'ending_balance':closing,
                'currency':statement_currency("\n".join(page_texts)),
-               'running_balances':running_balances,'qbo_verified':True}
+               'running_balances':running_balances,'qbo_verified':acct is not None}
 
 
 def generate_cibc_qbo(df, info, account_type):
@@ -3092,7 +3096,7 @@ def generate_cibc_qbo(df, info, account_type):
         account_types = {'Personal Chequing': 'CHECKING', 'Business Chequing': 'CHECKING',
                          'Personal Savings': 'SAVINGS', 'Business Savings': 'SAVINGS'}
         if account_type not in account_types:
-            raise ValueError('Select a CIBC chequing or savings account type.')
+            raise ValueError('CIBC QBO requires a confirmed chequing or savings account type.')
         acct_tag=f'<BANKACCTFROM><BANKID>600000100<ACCTID>{acct}<ACCTTYPE>{account_types[account_type]}</BANKACCTFROM>'
         outer='BANKMSGSRSV1';response='STMTTRNRS';statement='STMTRS'
         ending=info['ending_balance']
@@ -3302,6 +3306,7 @@ STATEMENT_ACCOUNT_ALIASES = {
 }
 
 STATEMENT_PRODUCT_HEADINGS = {
+    "cibc account statement": ("CIBC", "Deposit Account"),
     "rbc digital choice": ("RBC Royal Bank", "Business Chequing"),
     "rbc digital choice business account": ("RBC Royal Bank", "Business Chequing"),
     "td business cash back visa": ("TD Canada Trust", "Business Credit Card"),
@@ -3328,6 +3333,7 @@ def detect_statement_selection(pdf_bytes):
     with open_statement_pdf(pdf_bytes) as document:
         if not len(document):
             return {}
+        original_lines = document[0].get_text().casefold().splitlines()
         lines = [
             " ".join(line.casefold().replace("'", "’").split())
             for line in document[0].get_text(sort=True).splitlines() if line.strip()
@@ -3355,9 +3361,20 @@ def detect_statement_selection(pdf_bytes):
             bank, account = product
             matches["bank"].add(bank)
             matches["account type"].add(account)
+    if (any(line.strip() == "business banking statement" for line in original_lines)
+            and any(re.search(r"(?<![\w.-])(?:www\.)?bmo\.com(?![\w.-])", line) for line in lines)):
+        matches["bank"].add("BMO Bank of Montreal")
+        matches["account type"].add("Business Chequing")
+    if matches["account type"].intersection(UNIVERSAL_DEPOSIT_TYPES):
+        matches["account type"].discard("Deposit Account")
     card_networks = set()
     for line in lines[:24]:
-        heading = line.translate(str.maketrans("", "", "®™")).strip().removesuffix(" statement")
+        heading = line.translate(str.maketrans("", "", "®™"))
+        heading = " ".join(heading.split()).removesuffix(" statement")
+        heading, account_label, _ = heading.partition(" account number")
+        heading = heading.rstrip(" :·•|–—-")
+        if account_label and re.match(r"cibc aventura visa infinite\b", heading):
+            heading = "cibc aventura visa infinite"
         for pattern, bank, network in STATEMENT_CARD_HEADINGS:
             if re.fullmatch(pattern, heading):
                 matches["bank"].add(bank)

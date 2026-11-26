@@ -18,6 +18,7 @@ def cibc_visa_statement(card="4321 XXXX XXXX 1234", closing="118.00", refund="5.
             "Your payments", "Jan 5", "Jan 6", "Synthetic payment", "10.00",
             "Total payments", "Your new charges and credits",
             "Dec 31", "Jan 2", "Synthetic purchase", "30.00",
+            "Total for first card", "30.00", "Card number 4321 XXXX XXXX 9876",
         ],
         [
             "Jan 8", "Jan 9", "Synthetic refund", refund,

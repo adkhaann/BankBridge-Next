@@ -221,6 +221,17 @@ class StatementSelectionTests(unittest.TestCase):
             "RBC Royal Bank", "Visa Statement",
         ])), {"bank": "RBC Royal Bank", "account type": "Credit Card", "card network": "Visa"})
 
+    def test_detects_bank_headings_observed_on_statement_pdfs(self):
+        for lines, expected in (
+            (["Business Banking statement", "For banking information visit www.bmo.com"],
+             {"bank": "BMO Bank of Montreal", "account type": "Business Chequing"}),
+            (["CIBC Account Statement"], {"bank": "CIBC", "account type": "Deposit Account"}),
+            (["CIBC Aventura Visa Infinite CA Card   Account number"],
+             {"bank": "CIBC", "account type": "Credit Card"}),
+        ):
+            with self.subTest(lines=lines):
+                self.assertEqual(engine.detect_statement_selection(statement_pdf(lines)), expected)
+
     def test_does_not_guess_unknown_or_conflicting_selections(self):
         result = engine.detect_statement_selection(statement_pdf([
             "Synthetic Bank", "Account type: Personal Savings", "Account type: Business Savings",

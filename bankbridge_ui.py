@@ -304,7 +304,9 @@ with left:
             account_type = "Deposit layout (account type unconfirmed)"
         if bank and account_type:
             st.caption(f"Using {bank} · {account_type}")
-        dedicated = eng.get_dedicated_extractor(bank, account_type)
+        cibc_deposit = bank == "CIBC" and account_type == "Deposit Account"
+        dedicated = (eng.extract_cibc_chequing_transactions if cibc_deposit
+                     else eng.get_dedicated_extractor(bank, account_type))
         eligible = account_type in eng.UNIVERSAL_DEPOSIT_TYPES or account_type in eng.CREDIT_CARD_SELECTIONS
         use_fallback = st.checkbox("Try experimental statement parser") if dedicated and eligible else False
         universal = eligible and (dedicated is None or use_fallback)
@@ -313,6 +315,8 @@ with left:
             if universal or rbc_deposit_fallback else False
         )
         extractor = get_extractor(bank, account_type, use_ocr=use_ocr, use_fallback=use_fallback)
+        if cibc_deposit:
+            extractor = dedicated
         if rbc_deposit_fallback:
             extractor = lambda data: eng.extract_rbc_unclassified_deposit(data, use_ocr=use_ocr)
             st.info("RBC detected. BankBridgeNext will check whether this PDF matches a deposit statement layout.")
