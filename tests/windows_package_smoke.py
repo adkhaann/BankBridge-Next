@@ -62,7 +62,7 @@ def download_iif_postings(page, register_label, register_name):
     field = page.get_by_role("textbox", name=register_label)
     field.fill(register_name)
     field.press("Enter")
-    page.get_by_role("checkbox", name=re.compile("Ask My Accountant")).check()
+    page.get_by_text("I confirmed that the statement and register use CAD and Ask My Accountant is an existing CAD account.", exact=True).click()
     rows = download_path(page, button_name).read_text(encoding="ascii").splitlines()
     return [line.split("\t")[1:5] for line in rows if line.startswith(("TRNS\t", "SPL\t"))]
 
