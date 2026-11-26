@@ -10,6 +10,7 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -245,24 +246,32 @@ def open_with_edge(url):
         log("Microsoft Edge not found")
         return False
 
-    profile = os.path.join(DATA_DIR, "edge-profile")
-    prefs_dir = os.path.join(profile, "Default")
-    prefs = os.path.join(prefs_dir, "Preferences")
-    if not os.path.exists(prefs):          # ask where to save downloads
-        os.makedirs(prefs_dir, exist_ok=True)
-        with open(prefs, "w") as f:
-            f.write('{"download":{"prompt_for_download":true},'
-                    '"browser":{"has_seen_welcome_page":true}}')
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        # A shared profile can hand the window to an existing Edge process.
+        # The launching process then exits while the app window is still open.
+        with tempfile.TemporaryDirectory(
+            prefix="edge-session-", dir=DATA_DIR, ignore_cleanup_errors=True,
+        ) as profile:
+            prefs_dir = os.path.join(profile, "Default")
+            os.makedirs(prefs_dir)
+            with open(os.path.join(prefs_dir, "Preferences"), "w", encoding="utf-8") as f:
+                f.write('{"download":{"prompt_for_download":true},'
+                        '"browser":{"has_seen_welcome_page":true}}')
 
-    log("Opening Edge app window")
-    edge_proc = subprocess.Popen([
-        edge, f"--app={url}",
-        f"--user-data-dir={profile}", "--window-size=1320,900",
-        "--no-first-run", "--no-default-browser-check",
-        "--disable-features=Translate,msEdgeSidebarV2",
-    ])
-    edge_proc.wait()                        # returns when the window is closed
-    return True
+            log("Opening Edge app window with a fresh profile")
+            edge_proc = subprocess.Popen([
+                edge, f"--app={url}",
+                f"--user-data-dir={profile}", "--window-size=1320,900",
+                "--no-first-run", "--no-default-browser-check", "--disable-background-mode",
+                "--disable-features=Translate,msEdgeSidebarV2",
+            ])
+            status = edge_proc.wait()
+            log(f"Edge app process exited with status {status}")
+            return status == 0
+    except OSError as error:
+        log(f"Could not open Edge app window: {error!r}")
+        return False
 
 
 # --- Option 3: default browser ------------------------------------------------
