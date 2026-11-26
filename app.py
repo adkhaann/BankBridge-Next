@@ -3024,12 +3024,26 @@ def extract_cibc_chequing_transactions(pdf_bytes):
     m=re.search(r'For\s+([A-Za-z]+)\s+\d+\s+to\s+([A-Za-z]+)\s+\d+,\s+(20\d{2})',first)
     if not m:raise ValueError('CIBC statement period missing.')
     year=int(m.group(3));month=datetime.strptime(m.group(2),'%b').month
+    currencies = set()
+    if currency := statement_currency("\n".join(page_texts)):
+        currencies.add(currency)
+
     def ctl(label):
-        x=re.search(r'(?m)^'+re.escape(label)+r'[^\n]*\n(?:[+\-=]\s*\n)?\s*(-?\$?[\d,]+\.\d{2})',first)
-        if not x:raise ValueError('CIBC summary missing: '+label)
-        return cibc_signed(x.group(1))
+        pattern = (r"(?m)^" + re.escape(label) + r"[^\n]*\n"
+                   r"(?:[ \t]*([A-Z]{3})[ \t]*\n)?"
+                   r"(?:[ \t]*[+\-=][ \t]*\n)?"
+                   r"[ \t]*(-?\$?[\d,]+\.\d{2})[ \t]*$")
+        match = re.search(pattern, first)
+        if not match:
+            raise ValueError("CIBC summary missing: " + label)
+        if match[1]:
+            currencies.add(match[1])
+        return cibc_signed(match[2])
+
     opening=ctl('Opening balance on');closing=ctl('Closing balance on')
     debit_total=ctl('Withdrawals');credit_total=ctl('Deposits')
+    if len(currencies) > 1:
+        raise ValueError("The CIBC statement declares conflicting currencies.")
     acct=cibc_bank_identifier(first)
     transactions=[];running_balances=[];previous=opening;date=None
     money_re=re.compile(r'^-?\$?[\d,]+\.\d{2}$')
@@ -3076,7 +3090,7 @@ def extract_cibc_chequing_transactions(pdf_bytes):
     return df,{'statement_type':'chequing','bank':'CIBC',
                'control':{'debit_total':debit_total,'credit_total':credit_total},
                'account_id':acct,'opening_balance':opening,'ending_balance':closing,
-               'currency':statement_currency("\n".join(page_texts)),
+               'currency':next(iter(currencies), None),
                'running_balances':running_balances,'qbo_verified':acct is not None}
 
 
