@@ -130,12 +130,13 @@ def start_engine(port):
 
 def wait_until_ready(port, proc, timeout=90):
     url = f"http://127.0.0.1:{port}/_stcore/health"
-    end = time.time() + timeout
-    while time.time() < end:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
         if proc.poll() is not None:
             return False
         try:
-            with urllib.request.urlopen(url, timeout=1) as r:
+            with opener.open(url, timeout=1) as r:
                 if r.status == 200:
                     return True
         except Exception:
@@ -161,18 +162,7 @@ html,body{margin:0;height:100%;background:#0E2A47;font-family:"Segoe UI",system-
 <path d="M10 27L22 19Q32 40 42 19L54 27" stroke-width="3" stroke-linejoin="round"/>
 <path d="M27 25.6V44M32 29.5V44M37 25.6V44" stroke-width="2"/></g></svg>
 <div class="n">BankBridgeNext</div><div class="bar"><i></i></div><div class="t">Starting up…</div>
-</div>__SCRIPT__</body></html>"""
-
-# Used when the splash page itself waits for the engine (Edge app window).
-POLL_SCRIPT = """<script>
-var u="http://127.0.0.1:__PORT__/", n=0;
-function tick(){fetch(u+"_stcore/health",{mode:"no-cors",cache:"no-store"})
- .then(function(){location.replace(u);}).catch(function(){
-   if(++n>225){document.querySelector(".t").innerHTML="BankBridgeNext could not start. "+
-     "If it is already open in another window, please use that window.<br>Otherwise restart your computer and try again.";
-     document.querySelector(".bar").style.display="none";return;}
-   setTimeout(tick,400);});}
-tick();</script>"""
+</div></body></html>"""
 
 ERROR_PAGE = """<!doctype html><html><body style="font-family:Segoe UI,sans-serif;padding:40px;color:#1B2B3F">
 <h2>BankBridge could not start</h2><p>Please send this file to support:</p>
@@ -182,9 +172,8 @@ ERROR_PAGE = """<!doctype html><html><body style="font-family:Segoe UI,sans-seri
 SPLASH_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAPKElEQVR4nOWba5AdxXWAv9M9j3t39+5daSUEIeWKiE0exMSoiBERICNeseRggyMFGTAYsCAgxXEgAvNaLaSMAzEJsiiwSWETEwIInELBmEckMFg44mWwf+AkVTbGkiCYXe3j3r2vme78mLnvubvSXVUK5K7amr3d02fOd/r06TM9M0JiGVIwbAELkD1l7TKLnG7FLhFYCAwgaAQQoXak5bcAAjJNW3RCUlt8TOxXlddUF4rIGEp+brXeDmrL+KbrtkUnWmFogzA8bFpJpbWClSs1mzeHAJlla88RJWsRe4xoF4sBayK7vLfgo2qlEK1Ba2wYgKgdCJvGNl5/b8T2oGbzqrCzAZYudfj+94PMCRd/SFznTnH9ZdgwFkaIIIhIfGxR9v8JPqFN6oaxCBYRi6DF8yNjVIJtYbF4yeTX//Z/GBpyGB4O2g0Qw2c/tuYk6/gPiNaDNiwFIAoR1aT8exOeNh2xBlFGUinHmmDEVkp/Pr7xxq2NRoh6xm6fPfGiZVanHkPExwYBopxEwe8H+MY2CMR1HKukZCvl5eP/OLytyiwMDSmGh232lIt+yxr/FZQawIQhSvQBAV/vH+I6Ghizxiwa/+p1bzA0JKpqIhu494jjDmCC4ICDF0CJJggD8bwBsPdgLVRV61922Vni+f9qg8KB4/ad2iyB9PY6FAur99x8zf3CypU6MzLvReV6H7FhYBD0AQsfqROK7ytbLr869vPD/0hlR+ceL1ofZcMA1IEOLyCibbkMjj4qe9h/Ha+M6DNFuyCYusIHKnztaMT1QOszHWCJjdjl1wQ++scaxLLEQWQh1oCI+rWAj3RU1oSgZKEjQjbK7ROEdAkvKjra1v5dwtfl7Rf46Bgtg1lVH/lZwsf/a60JrSU0oHX1/O7htVaRPGvRSu0f+PgaokTtP7cHRCkmikVSnktPymOiUEKUmtXITxRLkTzfY6JUQqRVXnfw1Ta1X+AFlFZMlcucccyRvHDLFbz091dw9tKjyZdKaK3aFZ0BXmlFvlzmU4uOYMe1a3nxunWcvfgopiplVE3e7OARkP7l6+z+mPOihNBYXt90Db8xNwvARKHI7//VVxgvFHEcjW2MNTOMvLEWz3X48Q1f5OBspibv8Ou+StlEK7atOl+X8CCxB9AFfNWFtEJpxZ7xHB86dD6ZdIrQGKy1eI7DQF+a0Jq9HvlqvQF8z0UkMkZoDGnP44hDD2bPZA6lFErVSLqCj6ZAh857M+cdR1OsBIzlC1z08eN57NpL6Et5iEjtz9gWV90L+FgBjLVoEVQsSyth88Wf4S9POZ7JYolCJcBxVNfwiCTEgL2AV1rQWjMymefQwSwPX3khd116FgdlM1G7CKEx+I7mM8ctolCq4Kh2mYnwEkX+yWKRsxcfxbxML6ExqNgQc3rS3LbqE2z5i3M5bP5c3s1NoZSglNpn+CgG/OkX7F7Di+BozVS5QikIuODkxdx07unM6+/FGBu7ZFRsfLs5WSyx6Opb2T02Qcp1MXEc6AQvShGYkP50mleuX8f8TB9YW9cLMNaiRBgvlrjuu//B17e/iNaKXt8nsKYmcyb4Fg+YHl4phVaqPupXXchdl61mMNMT94HbHnuWXaPjTYr2p1MM/9mfUChXUFqmhY8MLEwWS1yz4kQOyvRhjKnplSuVueO5F6iE0b5mxvfY+OkVbFlzDofNm8u7+XyLN0wPH8WAmeABR8dzfarIRaf+MT+8+XI+dcyRBGGk3I9/sZtlGzax/t4tNBatFKExnL1kEWd+9EhGclN4jqYmuA1eMZIvsPwPf49LPraYIHZ9G8tzteLGx5/muFvv4sVf7KxNtdN+94Ns/8LnWXfCYnKlCoWggqv1jPCxB8ww8loxkstz6OAAD3/pQu5au5rBTC8ASgm3PLKNpdd/jWd/+jPmZ/vqi0qDEYy1/MM5n+TQuVny5UpDXlCH10pRDELm9/exafXpYC2OUk2uby3Mz/Ty0s5dnHT7txh+/GlMPNUyvsfGM5az5cLV/PbgXH41NYWS6ugmwwOomdx+qlzmgpOP5flb/rph1OG1N3Zx8vDtrP/nR7AC2d4eAtP83KEchJSCaAf6A4MD3H/ZOSgFxSDAdZzaSuFoTTkMKYch93xuJQvnzcXYyOUnCsXa4oFAYAyZVArX0Wx4fBtLb/8mL7y5q+4Nv/NBfrD2AtYt+SiFIIjiUgf4aZdBiJKbcmBYMKef+f19DaO+NRr113/G4EAGpaKLI7XOiERz+Yr7HgUgNIbjDl/Iw+vOI5P2eTeXJ7CWwFpG8lO4jub+Nas57YjDCUKDVsIXH/ouuycmm11KhNBarMC8TB8v79zNSXfeww1PPVPzhmwqxW8O9FMyYZSKd4DvuAxW3SY0loG+NDc99CRPvvpT/nv3r1h2/ddYf88jWBGyvWkCYxoysmZd+9M+D734Gpff9++AUAlDTv2Dw9lx/TrOP/5o+tM+2Z40Zy/+CDuuvowzjjqCchjiaMWN33uab7/wKnN60rSVWMfIG3xcrRh64hlOuOOb/OTtd/jPN3dy7RNP059KxUlYMjwCzkzR0gr09visueMBKibkrbEJBgcyhNYQWtssuMUCxljm9PXyjWd2sP4TJ3JInNJ+YO4Ad39uJSO5KRAY7O2p9fG0phQE3P3Dl+lLebVRbfSAxoTJxEvk/EwvL+16i1P/6V56fRffdRAlCelyszc4My0VFnBdh5FcHpQwp683musJq0WrByBRPpD2XZQIldAwmsuzIDbEYF9P0+lvT0yS8X08R5P2XCZK5eTRj68rcU5h49gwkE5TCCrkgwqe68wI37QMJgaKqhFslPY6Wre7VO0o7QaIL2qwcUS2rNj4La75tyd45c3dVMIQYy0/2fU2Q49uZemtd7GnUMSN9xQ6yUtMckQIrUFrhevovYKHeBmsXamjEaI7r6a7udaRb5oKjQpHjTZe1iZLJb78yFOcdtvdjOYLAHz6G/dxwyNP1OCbY0qCW0lDvG3x3Noz/b2Aj2LAdOtkDXCGtlrkT9a3WmeJkqreTC9e9fYYcB1Nb6YvGrnqnK96Fc0xILq0YGtt0+g/A3xCEOwCXuryOnpAQ7UFAhuvHHGDhfpq0mq8Vos2yZsdfEsQ7BY+no+JEzZB6ZqchvOb3LmhT5LMpumWMCX3Ab6zB+wrfKMy08HXfneqazVUu7hkoO7gkz2gG/hGpTsp3PS75dyOdZIgsxG2xQP2Eb7dA7qBp+XiSQaYziA1KGmpl5reif1bPaAL+GYPmA184zlJpRWstS7B3dvs0dRQ7d8w7bqAh6oHzAAvqq6NJJwTvTcVHdv1FeqvYcRdlDTzS30PsbEuyQJSvd5eeIBNqKsZJr5Gy8sQ7fBKq2iJsrZ+f926NkPt6U1rCWmuD6vn1vWo9Q2xHfvV6m39/KbWGpilmkS6WkcyE0Ze6jFgupFXTBZLzOntwXc1FWNbPIB4SkS3qD2+2zZoac+lx/OQWGjac+nxXdKeW3O+dPzkp6nOrfZrlefQ47n4rpuYmUbJliIwltFSkT7PwzZOgwZ4BCR73lU2CT7amS3xyaM/zN+dtYIezyVs2J9LKiLCQZne6BkekTLvTOQIreXg/j6UCP87mattdR2U6UPX6ixKaKoLrWVB/LsmL5cnmEYPS7SVXjaGoWd/wH2vv06/7xFWk8bWwcue/yWbNOdDa0m5Lq99+XIOGch0hN6XUn1E0E1dN2WiVObDd9/NWKmEoxVJQVG1wjcmJUpJ3LG+zT2bkhjU97Kum+KoaK/R0j7y1ZjhtITj2jzytGY0X+Bv7n+Ur6xaTn86hWqIoIlFwHd0bb4DlIIgehTfBZUAnuM0dS2F4YyDYawlXwm44fnn2ZXLkfX99mBYzTOyF1zdPAUalhhRQq5UZsFAhv6039a5cRkMrSXtOXxv7fksyPTV4D9+57fZOTaB5zbfo0diGkaF5uuHNgp4j332LBb01eUt/5cH2Tk5Gd9N1uVVLWbj/rlKwFv5HBnfa18OG67Vdi/QmORYLP09PuOFIqNThbZAWTOAqq4CHoGpj44Ffjk2zhujY/hec9SWaZKU2qriuQQNg22BX05O8MbYeMIq0CxHKaHf9+MnUcnwbctgUoYXWoujNY5q79zYz9jI/WlxT991SHlubYuqGmJsaybZooexFt912uU5mpRblWcTwarpykzwsQE6w9cyKqlO4sYjTXXRdpSOdnQalBYRTG3rw8bvs9Miq/0YEj1UcbRqkadiebZZjlTT4oaAMwM8cSZopPE9gQ4uNW2bgChF2YRNKW1oLBOlElpF4usvTSUp1CIPKMf5Qk2etUyUS/G7QjFshwxvb+ARjBKRcdre49kHeCIw11HsKRRZv+UJ3snlGZ0qcOWjT/LWZK4lYM0AH4+h62j2FIusf2ob7+SnGC0UuGrrM7yVz9e307qFR0ArLDIuAxdf+7K47qLoPeGEdwX3wTAiily5zCHZ6GnRronJKAp3iPbJ8hq8QIRcpcIhmT6UUuzKTTaktrMYeTDie8qUy684VmS7aL0IE7Yth3sPHx2tWPrTPqOFAojQn/Ix+zDyrXVWoD/lM1oqAlFUD2fv9lEocjRU2K6w6jvxN0FqNvDVi4bW4joaz9Gzgm+SpzWuo/cPPAIKZSsBRvEdNT56xHMY8yPxfBDC2cC3zuPZwlf7Jz6T6BYeQkmlsWHwo/HewecUm1eFInIzjiMgdrbwMk1bN/Cd+nUFH9VZPFcQuZlVq0LF0JDac/vwA6Y49ZykUg4QHLDwEEhfj2Nyk8/tOX/NA1ir6ptV1jnPhpUxXMeBeCocUPA2FM91bLk8ZrQ6DxHYsCG2S/WzubVDyyTtPSbg2yAM0NJhy+z9Bk8gnutYpUqSLywfWXPpNh58UEdTAGDz5pChIWd80/A2WyqusKJGpCftYAlAzPsX3hogkN4exyoZkUJpxciaS7cxNOSwKvqEtj4FhocDhoac8Y03bg2L+WNtWNkmvT2O+F58jg0BA2Lfs/BREDdACBZJpZT09zk2qGxTE6VjRy66ZGvnT2erpeED44ErbzoHLWuBY8R1wBqsMfGLi+8xeBHQCnEccDS2EmCV2qEIN42c+/no4+nY7Rtx2w0ARF+TbrCxRclec8sysKeLhEtAFgp2ABH9noIXQkTFn8/LdoXeMvLZC6LP560VNmxI/Hz+/wCWNM2Kh6tAuAAAAABJRU5ErkJggg=="
 
 
-def splash_html(port=None):
-    script = POLL_SCRIPT.replace("__PORT__", str(port)) if port else ""
-    return SPLASH.replace("__SCRIPT__", script).replace("__ICON__", SPLASH_ICON)
+def splash_html():
+    return SPLASH.replace("__ICON__", SPLASH_ICON)
 
 
 # --- Option 1: built-in window (needs Microsoft WebView2) -------------------
@@ -250,7 +239,7 @@ def find_edge():
     return None
 
 
-def open_with_edge(port, proc):
+def open_with_edge(url):
     edge = find_edge()
     if not edge:
         log("Microsoft Edge not found")
@@ -265,17 +254,12 @@ def open_with_edge(port, proc):
             f.write('{"download":{"prompt_for_download":true},'
                     '"browser":{"has_seen_welcome_page":true}}')
 
-    splash = os.path.join(DATA_DIR, "starting.html")
-    with open(splash, "w", encoding="utf-8") as f:
-        f.write(splash_html(port))
-
     log("Opening Edge app window")
     edge_proc = subprocess.Popen([
-        edge, "--app=file:///" + splash.replace(os.sep, "/"),
+        edge, f"--app={url}",
         f"--user-data-dir={profile}", "--window-size=1320,900",
         "--no-first-run", "--no-default-browser-check",
         "--disable-features=Translate,msEdgeSidebarV2",
-        "--allow-file-access-from-files",
     ])
     edge_proc.wait()                        # returns when the window is closed
     return True
@@ -290,27 +274,54 @@ def open_with_browser(port, proc):
     proc.wait()
 
 
-def main():
-    port = free_port()
-    log(f"Starting {APP_NAME} on port {port}")
-    proc = start_engine(port)
-    # Default: Microsoft Edge app window (most reliable on Windows).
-    # Set BANKBRIDGE_WINDOW=builtin to try the built-in WebView2 window first.
-    mode = os.environ.get("BANKBRIDGE_WINDOW", "edge").lower()
+def stop_engine(proc):
+    if proc.poll() is not None:
+        return
+    proc.terminate()
     try:
-        if mode == "builtin" and open_with_webview(port, proc) == "ok":
-            return
-        if open_with_edge(port, proc):
-            return
-        if mode != "builtin" and open_with_webview(port, proc) == "ok":
-            return
-        open_with_browser(port, proc)
-    finally:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
+def main():
+    import webbrowser
+
+    # Check readiness in Python so Edge can open the local app directly.
+    for attempt in range(1, 3):
+        port = free_port()
+        log(f"Starting {APP_NAME} on port {port}, attempt {attempt}")
         try:
-            proc.terminate()
-        except Exception:
-            pass
-        log("Closed")
+            proc = start_engine(port)
+        except OSError as error:
+            log(f"Could not launch engine: {error!r}")
+            continue
+        try:
+            if not wait_until_ready(port, proc):
+                log(f"Engine did not become ready on attempt {attempt}; exit status {proc.poll()}")
+                continue
+            mode = os.environ.get("BANKBRIDGE_WINDOW", "edge").lower()
+            if mode == "builtin" and open_with_webview(port, proc) == "ok":
+                return
+            if open_with_edge(f"http://127.0.0.1:{port}/"):
+                return
+            if mode != "builtin" and open_with_webview(port, proc) == "ok":
+                return
+            open_with_browser(port, proc)
+            return
+        finally:
+            stop_engine(proc)
+            log("Closed engine")
+
+    import html
+    from pathlib import Path
+
+    error_page = Path(DATA_DIR, "startup-error.html")
+    error_page.parent.mkdir(parents=True, exist_ok=True)
+    error_page.write_text(ERROR_PAGE.format(log=html.escape(LOG_FILE)), encoding="utf-8")
+    if not open_with_edge(error_page.as_uri()):
+        webbrowser.open(error_page.as_uri())
 
 
 if __name__ == "__main__":
